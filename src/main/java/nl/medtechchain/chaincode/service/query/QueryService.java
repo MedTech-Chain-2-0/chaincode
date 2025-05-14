@@ -8,6 +8,7 @@ import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
 import nl.medtechchain.chaincode.service.query.average.Average;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCount;
 import nl.medtechchain.chaincode.service.query.sum.Sum;
+import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCount;
 import nl.medtechchain.proto.common.ChaincodeError;
 import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceCategory;
@@ -66,6 +67,9 @@ public class QueryService {
                 break;
             case SUM:
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_SUM_FIELDS).orElse("");
+                break;
+            case UNIQUE_COUNT:
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_UNIQUE_COUNT_FIELDS).orElse("");
                 break;
         }
 
@@ -222,6 +226,28 @@ public class QueryService {
 
         // proto generated thingy, creates getters setters and everything
         return QueryResult.newBuilder().setSumResult(sum).build();
+    }
+
+    public QueryResult uniqueCount(Query query,List<DeviceDataAsset> assets) {
+        var descriptor = deviceDataDescriptorByName(query.getTargetField())
+                         .orElseThrow(() ->
+                             new IllegalStateException("unknown target field " + query.getTargetField()));
+
+        var fieldType =
+            DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+    
+        long distinct =
+            UniqueCount.Factory.getInstance(fieldType)
+                               .uniqueCount(encryptionInterface,descriptor,assets);
+    
+        // differential privacy, same as other queries
+        switch (mechanismType) {
+            case LAPLACE:
+                var noise = new LaplaceNoise();
+                distinct = noise.addNoise(distinct, 1, getEpsilon(), 0);
+        }
+        
+        return QueryResult.newBuilder().setCountResult(distinct).build();
     }
 
     private double getEpsilon() {
