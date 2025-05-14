@@ -62,6 +62,8 @@ public class ConfigDefaults {
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_COUNT_FIELDS, "udi,hospital,manufacturer,model,firmware_version,device_type,category,speciality"));
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_GROUPED_COUNT_FIELDS, "hospital,manufacturer,model,device_type,category,speciality"));
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_AVERAGE_FIELDS, "production_date,warranty_expiry_date,usage_hours"));
+            list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_SUM_FIELDS, "usage_hours"));
+
             list.add(entry(CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY, "laplace"));
             list.add(entry(CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY_LAPLACE_EPSILON, "1"));
             list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_BIT_LENGTH, EncryptionDefaults.BIT_LENGTH + ""));
