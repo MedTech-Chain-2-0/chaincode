@@ -7,6 +7,7 @@ import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
 import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
 import nl.medtechchain.chaincode.service.query.average.Average;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCount;
+import nl.medtechchain.chaincode.service.query.sum.Sum;
 import nl.medtechchain.proto.common.ChaincodeError;
 import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceCategory;
@@ -62,6 +63,9 @@ public class QueryService {
                 break;
             case AVERAGE:
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_AVERAGE_FIELDS).orElse("");
+                break;
+            case SUM:
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_SUM_FIELDS).orElse("");
                 break;
         }
 
@@ -192,6 +196,32 @@ public class QueryService {
         }
 
         return result;
+    }
+
+    public QueryResult sum(Query query, List<DeviceDataAsset> assets) {
+        var descriptor = deviceDataDescriptorByName(query.getTargetField())
+                         .orElseThrow(() ->
+                             new IllegalStateException("unknown target field " + query.getTargetField()));
+
+        var fieldType  = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        // check just in case if we have the compatible field
+        if (fieldType != DeviceDataFieldType.INTEGER)
+            throw new IllegalStateException("cannot run SUM over " + fieldType);
+    
+        // calls on the Sum class to perform the calculations
+        long sum = Sum.Factory.getInstance(fieldType)
+                              .sum(encryptionInterface, descriptor, assets);
+    
+        // same as other queries, adds some noise to the result.
+        switch (mechanismType) {
+            case LAPLACE:
+                var noise = new LaplaceNoise();
+                sum = noise.addNoise(sum, 1, getEpsilon(), 0);
+        }
+
+        // proto generated thingy, creates getters setters and everything
+        return QueryResult.newBuilder().setSumResult(sum).build();
     }
 
     private double getEpsilon() {
