@@ -209,7 +209,7 @@ public class QueryService {
         if (fieldType != DeviceDataFieldType.INTEGER)
             throw new IllegalStateException("cannot run SUM over " + fieldType);
     
-        // gets only the integer class for sum
+        // calls on the Sum class to perform the calculations
         long sum = Sum.Factory.getInstance(fieldType)
                               .sum(encryptionInterface, descriptor, assets);
     
