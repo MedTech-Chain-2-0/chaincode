@@ -64,6 +64,7 @@ public class ConfigDefaults {
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_AVERAGE_FIELDS, "production_date,warranty_expiry_date,usage_hours"));
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_SUM_FIELDS, "usage_hours"));
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_UNIQUE_COUNT_FIELDS, "hospital,manufacturer,model,firmware_version,device_type,category,speciality"));
+            list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_HISTOGRAM_FIELDS, "usage_hours,battery_level, production_date, last_service_date,warranty_expiry_date"));
 
             list.add(entry(CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY, "laplace"));
             list.add(entry(CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY_LAPLACE_EPSILON, "1"));

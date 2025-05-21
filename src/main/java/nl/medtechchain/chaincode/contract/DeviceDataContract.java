@@ -83,6 +83,9 @@ public final class DeviceDataContract implements ContractInterface {
                         case UNIQUE_COUNT:
                             r = queryService.uniqueCount(query, data);
                             break;
+                        case HISTOGRAM:
+                            r = queryService.histogram(query, data);
+                            break;
                     }
                 } catch (Exception t) {
                     logger.log(Level.WARNING, "Query error", t);

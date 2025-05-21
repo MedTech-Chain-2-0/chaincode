@@ -7,6 +7,7 @@ import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
 import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
 import nl.medtechchain.chaincode.service.query.average.Average;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCount;
+import nl.medtechchain.chaincode.service.query.histogram.Histogram;
 import nl.medtechchain.chaincode.service.query.sum.Sum;
 import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCount;
 import nl.medtechchain.proto.common.ChaincodeError;
@@ -70,6 +71,12 @@ public class QueryService {
                 break;
             case UNIQUE_COUNT:
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_UNIQUE_COUNT_FIELDS).orElse("");
+                break;
+            case HISTOGRAM:
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_HISTOGRAM_FIELDS).orElse("");
+
+                // extra check for the bin size
+                if(query.getBinSize() <= 0) return Optional.of(invalidQueryError("Bin size hast to be bigger than 0"));
                 break;
         }
 
@@ -248,6 +255,19 @@ public class QueryService {
         }
         
         return QueryResult.newBuilder().setCountResult(distinct).build();
+    }
+
+    public QueryResult histogram(Query query, List<DeviceDataAsset> assets) {
+        var descriptor = deviceDataDescriptorByName(query.getTargetField())
+                         .orElseThrow(() ->
+                             new IllegalStateException("unknown target field " + query.getTargetField()));
+
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        var result = Histogram.Factory.getInstance(fieldType).histogram(encryptionInterface, descriptor, assets, query.getBinSize());
+
+        return QueryResult.newBuilder().setGroupedCountResult(QueryResult.GroupedCount.newBuilder().putAllMap(result).build()).build();
+
     }
 
     private double getEpsilon() {
