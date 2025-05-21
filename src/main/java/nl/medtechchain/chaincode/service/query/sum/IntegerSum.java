@@ -2,9 +2,16 @@ package nl.medtechchain.chaincode.service.query.sum;
 
 import com.google.protobuf.Descriptors;
 import nl.medtechchain.chaincode.service.encryption.HomomorphicEncryptionScheme;
+import nl.medtechchain.chaincode.service.encryption.PlatformBfvEncryption;
 import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
 
 
 class IntegerSum implements Sum {
@@ -20,8 +27,22 @@ class IntegerSum implements Sum {
     public long sum(PlatformEncryptionInterface encryptionInterface, Descriptors.FieldDescriptor descriptor,
                     List<DeviceDataAsset> assets) {
 
+        // ---- DEBUG: ping TTP /testt endpoint to prove reachability ----
+        // try {
+        //     String adr = nl.medtechchain.chaincode.config.ConfigDefaults.PlatformConfigDefaults.EncryptionDefaults.TTP_ADDRESS;
+        //     HttpClient.newHttpClient()
+        //             .send(HttpRequest.newBuilder()
+        //                     .uri(URI.create("http://" + adr + "/api/bfv/testt"))
+        //                     .GET()
+        //                     .build(),
+        //                   HttpResponse.BodyHandlers.discarding());
+        // } catch (Exception e) {
+        //     throw new IllegalStateException("EXCEPTION IN TTP REQUEST: " + e.getClass().getName() + ": " + e.getMessage(), e);
+        //  }
+        // --------------------------------------------------------------
+
         long plainSum = 0;
-        String homoSum = null;
+        List<String> encrypted = new ArrayList<>();
 
         for (DeviceDataAsset a : assets) {
             // very complicated getter for a field, made like this because we working with protobuffs
@@ -34,15 +55,8 @@ class IntegerSum implements Sum {
                 case ENCRYPTED:
                     if (encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
-
                     if (encryptionInterface.isHomomorphic()) {
-                        // ATENTION
-                        // not exactly sure that it should be done like this
-                        // might depent on the schema
-                        // done like this in other queries
-                        homoSum = (homoSum == null)
-                                ? fieldValue.getEncrypted()
-                                : ((HomomorphicEncryptionScheme) encryptionInterface).add(homoSum, fieldValue.getEncrypted());
+                        encrypted.add(fieldValue.getEncrypted());
                     } else {
                         // no homomorphic encryption -> we have the decrypt
                         // done like this in other queries, but not sure if it should be done like this
@@ -52,7 +66,20 @@ class IntegerSum implements Sum {
                     break;
             }
         }
-        if (homoSum != null) plainSum += encryptionInterface.decryptLong(homoSum);
-        return plainSum;
-    }
+
+        if (!encrypted.isEmpty()) {
+            String ctSum;
+            if (encrypted.size() == 1) {
+                ctSum = encrypted.get(0);
+            }
+            else if (encryptionInterface instanceof PlatformBfvEncryption)
+                ctSum = ((PlatformBfvEncryption)encryptionInterface).addAll(encrypted);
+            else {                                // fallback – pairwise
+                ctSum = encrypted.get(0);
+                for (int i = 1; i < encrypted.size(); i++)
+                    ctSum = ((HomomorphicEncryptionScheme)encryptionInterface).add(ctSum, encrypted.get(i));
+            }
+            plainSum += encryptionInterface.decryptLong(ctSum);
+        }
+        return plainSum;    }
 }
