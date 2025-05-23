@@ -20,6 +20,7 @@ import nl.medtechchain.proto.devicedata.MedicalSpeciality;
 import nl.medtechchain.proto.query.Filter;
 import nl.medtechchain.proto.query.Query;
 import nl.medtechchain.proto.query.QueryResult;
+import nl.medtechchain.proto.query.QueryResult.MeanAndStd;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -78,6 +79,9 @@ public class QueryService {
 
                 // extra check for the bin size
                 if(query.getBinSize() <= 0) return Optional.of(invalidQueryError("Bin size hast to be bigger than 0"));
+                break;
+            case STD:
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_STD_FIELDS).orElse("");
                 break;
         }
 
@@ -267,6 +271,14 @@ public class QueryService {
 
         var result = Histogram.Factory.getInstance(fieldType).histogram(encryptionInterface, descriptor, assets, query.getBinSize());
 
+        switch (mechanismType) {
+            case LAPLACE:
+                var noise = new LaplaceNoise();
+                for(Map.Entry<String, Long> entry : result.entrySet()){
+                    entry.setValue(noise.addNoise(entry.getValue(), 1, getEpsilon(), 0));
+                }
+        }
+
         return QueryResult.newBuilder().setGroupedCountResult(QueryResult.GroupedCount.newBuilder().putAllMap(result).build()).build();
 
     }
@@ -278,8 +290,16 @@ public class QueryService {
 
         var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
 
-        double std = Std.Factory.getInstance(fieldType).std(encryptionInterface, descriptor, assets);
-        double mean = Std.Factory.getInstance(fieldType).mean(encryptionInterface, descriptor, assets);
+        Std.MeanAndStd ms = Std.Factory.getInstance(fieldType).std(encryptionInterface, descriptor, assets);
+        double mean = ms.mean();
+        double std = ms.std();
+
+        switch (mechanismType) {
+            case LAPLACE:
+                var noise = new LaplaceNoise();
+                mean = noise.addNoise(mean, 1, getEpsilon(), 0);
+                std = noise.addNoise(std, 1, getEpsilon(), 0);
+        }
 
         QueryResult.MeanAndStd meanAndStd = QueryResult.MeanAndStd.newBuilder().setMean(mean).setStd(std).build();
         return QueryResult.newBuilder().setMeanStd(meanAndStd).build();

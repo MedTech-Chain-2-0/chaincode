@@ -7,28 +7,11 @@ import java.util.List;
 
 public class IntegerStd implements Std{
     @Override
-    public double std(PlatformEncryptionInterface encryptionInterface, Descriptors.FieldDescriptor descriptor,
+    public MeanAndStd std(PlatformEncryptionInterface encryptionInterface, Descriptors.FieldDescriptor descriptor,
     List<DeviceDataAsset> assets) {
-        double count = 0;
-
-        // I want to keep this just in case we have some value neither encrypted nor plain
-        for(DeviceDataAsset a : assets){
-            var value = (DeviceDataAsset.IntegerField) a.getDeviceData().getField(descriptor);
-            switch(value.getFieldCase()){
-                case PLAIN:
-                    count++;
-                    break;
-                case ENCRYPTED:
-
-                    count++;
-                    break;
-                default:
-                    break;
-            } 
-        }
-
         double mean = this.mean(encryptionInterface, descriptor, assets);
         double variance = 0;
+        long count = 0;
 
         // use that mean in the formula for standard deviation
         for(DeviceDataAsset a : assets){
@@ -36,12 +19,14 @@ public class IntegerStd implements Std{
             switch(fieldValue.getFieldCase()){
                 case PLAIN:
                     variance += Math.pow(fieldValue.getPlain() - mean, 2);
+                    count++;
                     break;
                 case ENCRYPTED:
                     // TODO: proper encryption handling!!!
                     if(encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
                     variance += Math.pow(encryptionInterface.decryptLong(fieldValue.getEncrypted()) - mean, 2);
+                    count++;
                     break;
                 default:
                     // should not be reached
@@ -49,15 +34,15 @@ public class IntegerStd implements Std{
             }
         }
 
-        if(count < 2) return 0; // just in case to prevent possible division by 0
-        return Math.sqrt(variance / (count - 1));
+        if(count < 2) return new MeanAndStd(0, mean); // just in case to prevent possible division by 0
+        double std = Math.sqrt(variance / (count - 1));
+        return new MeanAndStd(std, mean);
     }
 
-    @Override
-    public double mean(PlatformEncryptionInterface encryptionInterface, Descriptors.FieldDescriptor descriptor,
+    private double mean(PlatformEncryptionInterface encryptionInterface, Descriptors.FieldDescriptor descriptor,
     List<DeviceDataAsset> assets) {
+        long count = 0;
         double sum = 0;
-        double count = 0;
 
         // loop through assets
         for(DeviceDataAsset a : assets){
@@ -73,11 +58,14 @@ public class IntegerStd implements Std{
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
                     sum += encryptionInterface.decryptLong(value.getEncrypted());
                     count++;
+                    break;
                 default:
                     // should not be reached
                     break;
             } 
         }
+
+        if (count == 0) return 0;
 
         return sum / count;
     }
