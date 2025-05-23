@@ -9,28 +9,25 @@ public class IntegerStd implements Std{
     @Override
     public double std(PlatformEncryptionInterface encryptionInterface, Descriptors.FieldDescriptor descriptor,
     List<DeviceDataAsset> assets) {
-        double sum = 0;
         double count = 0;
 
-        // loop through assets in order to get the mean
+        // I want to keep this just in case we have some value neither encrypted nor plain
         for(DeviceDataAsset a : assets){
             var value = (DeviceDataAsset.IntegerField) a.getDeviceData().getField(descriptor);
             switch(value.getFieldCase()){
                 case PLAIN:
-                    sum += value.getPlain();
                     count++;
                     break;
                 case ENCRYPTED:
-                    // TODO: proper encryption handling!!!
-                    if(encryptionInterface == null)
-                        throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
-                    sum += encryptionInterface.decryptLong(value.getEncrypted());
+
                     count++;
+                    break;
+                default:
+                    break;
             } 
         }
-        // NOTE: we are not reusing the mean method, out of convinience
-        // the count variable is handy as it count how much assets are actually there and not some outliers.
-        double mean = sum / count;
+
+        double mean = this.mean(encryptionInterface, descriptor, assets);
         double variance = 0;
 
         // use that mean in the formula for standard deviation

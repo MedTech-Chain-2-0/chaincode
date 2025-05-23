@@ -1,5 +1,6 @@
 package nl.medtechchain.chaincode.service.query.std;
 
+import java.time.Instant;
 import java.util.List;
 
 import com.google.protobuf.Descriptors;
@@ -24,12 +25,12 @@ public class TimestampStd implements Std{
         String cryptoSum = null; // To be investigated if done right/ or fixed later on
 
         for(DeviceDataAsset a : asset){
-            var value = (DeviceDataAsset.TimestampField) a.getDeviceData().getField(descriptor);
-            long secs = 0;
+            DeviceDataAsset.TimestampField value = (DeviceDataAsset.TimestampField) a.getDeviceData().getField(descriptor);
             switch(value.getFieldCase()){
                 case PLAIN:
-                    secs =value.getPlain().getSeconds();
+                    sum += value.getPlain().getSeconds();
                     count++;
+                    break;
                 case ENCRYPTED:
                     // TODO: proper encryption handling!!!
                     // this is done like the previous developers handled encryption case in average query
@@ -37,8 +38,7 @@ public class TimestampStd implements Std{
                     // seems logical but needs some special attention
                     if(encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
-                    cryptoSum = ((HomomorphicEncryptionScheme) encryptionInterface).add(cryptoSum, value.getEncrypted());
-                    count++;
+
                     if (encryptionInterface.isHomomorphic()) {
                         if (cryptoSum == null)
                             cryptoSum = value.getEncrypted();
@@ -47,12 +47,32 @@ public class TimestampStd implements Std{
                     }
                     else
                         sum += encryptionInterface.decryptLong(value.getEncrypted());
+
+                    count++;
+                    break;
+                default:
+                    break;
             }
         }
 
         if(cryptoSum != null) sum += encryptionInterface.decryptLong(cryptoSum);
 
-        return sum / count;
+        double mean = sum / count;
+        long now = Instant.now().getEpochSecond();
+        double result = 0;
+
+        if(descriptor.getName().equals("production_date"))
+            result =  now - mean; // before how many seconds were the devices produced
+        else if(descriptor.getName().equals("last_service_date"))
+            result =  now -mean;
+        else if(descriptor.getName().equals("warranty_expiry_date"))
+            result = mean - now;
+        else if(descriptor.getName().equals("last_sync_time"))
+            result = now - mean;
+        else
+            throw new IllegalStateException("Unknown field: " + descriptor.getName());
+
+        return result / 86400; // convert to days
     }
 }
 
