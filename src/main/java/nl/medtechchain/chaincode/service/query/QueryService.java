@@ -8,6 +8,7 @@ import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
 import nl.medtechchain.chaincode.service.query.average.Average;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCount;
 import nl.medtechchain.chaincode.service.query.histogram.Histogram;
+import nl.medtechchain.chaincode.service.query.std.Std;
 import nl.medtechchain.chaincode.service.query.sum.Sum;
 import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCount;
 import nl.medtechchain.proto.common.ChaincodeError;
@@ -267,6 +268,21 @@ public class QueryService {
         var result = Histogram.Factory.getInstance(fieldType).histogram(encryptionInterface, descriptor, assets, query.getBinSize());
 
         return QueryResult.newBuilder().setGroupedCountResult(QueryResult.GroupedCount.newBuilder().putAllMap(result).build()).build();
+
+    }
+
+    public QueryResult std(Query query, List<DeviceDataAsset> assets) {
+        var descriptor = deviceDataDescriptorByName(query.getTargetField())
+                         .orElseThrow(() ->
+                             new IllegalStateException("unknown target field " + query.getTargetField()));
+
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        double std = Std.Factory.getInstance(fieldType).std(encryptionInterface, descriptor, assets);
+        double mean = Std.Factory.getInstance(fieldType).mean(encryptionInterface, descriptor, assets);
+
+        QueryResult.MeanAndStd meanAndStd = QueryResult.MeanAndStd.newBuilder().setMean(mean).setStd(std).build();
+        return QueryResult.newBuilder().setMeanStd(meanAndStd).build();
 
     }
 

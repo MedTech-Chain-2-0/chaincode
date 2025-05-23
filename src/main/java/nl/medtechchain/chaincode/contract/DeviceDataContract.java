@@ -86,6 +86,9 @@ public final class DeviceDataContract implements ContractInterface {
                         case HISTOGRAM:
                             r = queryService.histogram(query, data);
                             break;
+                        case STD:
+                            r = queryService.std(query, data);
+                            break;
                     }
                 } catch (Exception t) {
                     logger.log(Level.WARNING, "Query error", t);
