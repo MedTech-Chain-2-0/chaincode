@@ -11,6 +11,11 @@ import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.get;
 import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.getUnsafe;
 import static nl.medtechchain.proto.config.PlatformConfig.Config.*;
 
+/**
+   Core interface for platform-level encryption operations.
+   Defines the contract for encrypting/decrypting different data types (strings, longs, booleans)
+   and includes a factory for instantiating concrete encryption schemes (BFV, Paillier, or none).
+ */
 public interface PlatformEncryptionInterface {
     default boolean isHomomorphic() {
         return this instanceof HomomorphicEncryptionScheme;

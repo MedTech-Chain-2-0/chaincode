@@ -13,7 +13,14 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.URI;
 
-
+/*
+   Handles summing of integer fields across device data assets.
+   Supports both plain and encrypted values:
+  - For plain values: performs direct addition
+  - For encrypted values: uses homomorphic encryption to sum ciphertexts without decryption
+    - With BFV: uses efficient batch addition via addAll
+    - With other schemes: falls back to pairwise addition
+ */
 class IntegerSum implements Sum {
     /*  
     * Performs the actual calculations of the sum. If in plain it just sums them for every asset,

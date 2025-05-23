@@ -5,6 +5,11 @@ import nl.medtechchain.chaincode.service.encryption.bfv.BfvTTPAPI;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+/**
+   Platform-level wrapper for BFV homomorphic encryption operations.
+   Provides a simplified interface for encrypting/decrypting values and performing
+   homomorphic additions, while delegating the actual cryptographic operations to the TTP service.
+ */
 public class PlatformBfvEncryption
         implements PlatformEncryptionInterface, HomomorphicEncryptionScheme {
 

@@ -7,6 +7,10 @@ import java.net.URI;
 import java.net.http.*;
 import java.util.List;
 
+/**
+   Client for interacting with the BFV encryption TTP (Trusted Third Party) service.
+   Handles encryption, decryption, and homomorphic addition operations on encrypted values.
+ */
 public interface BfvTTPAPI {
 
 
