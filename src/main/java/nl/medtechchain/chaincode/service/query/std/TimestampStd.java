@@ -12,6 +12,7 @@ import nl.medtechchain.proto.devicedata.DeviceDataAsset;
 
 
 public class TimestampStd implements Std{
+    private long secsDay = 86400;
     @Override
     public MeanAndStd std(PlatformEncryptionInterface encryptionInterface, Descriptors.FieldDescriptor descriptor,
     List<DeviceDataAsset> asset) {
@@ -42,11 +43,11 @@ public class TimestampStd implements Std{
             double delta; // gonna be days, like why not 
             if(descriptor.getName().equals("warranty_expiry_date")){
                 delta = secs - now; // because we looking back to the future
-                delta /= 86400;
+                delta /= secsDay;
             }
             else{
                 delta = now - secs; // we looking straight ahead towards the past
-                delta /= 86400;
+                delta /= secsDay;
             }
 
             variance += (delta - mean) * (delta - mean); // heard a rummor that this is faster than math.pow
@@ -111,7 +112,7 @@ public class TimestampStd implements Std{
             // very much just in case
             throw new IllegalStateException("Unknown field: " + descriptor.getName());
 
-        return result / 86400; // convert to days
+        return result / secsDay; // convert to days
     }
 }
 
