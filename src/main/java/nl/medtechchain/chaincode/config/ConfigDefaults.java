@@ -52,7 +52,15 @@ public class ConfigDefaults {
     public static class PlatformConfigDefaults {
 
         public static class EncryptionDefaults {
-            public static final String TTP_ADDRESS = "ttp.medtechchain.nl:6000";
+
+             /*
+             Note regarding TTP ADDRESS: currently the chaincode is setup to contact the ttp within
+             the same docker network. If you want to test the bfv scheme, you have to run ttp locally (from within wsl)
+             and change the below address to the output of the following command: "ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'". 
+             Port should stay the same 
+             */
+            public static final String TTP_ADDRESS = "ttp.medtechchain.nl:6000"; //"192.168.45.84:6000"; 
+           
             public static final int BIT_LENGTH = 2048;
         }
 
@@ -72,15 +80,25 @@ public class ConfigDefaults {
             list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_TTP_ADRRESS, EncryptionDefaults.TTP_ADDRESS));
             list.add(entry(CONFIG_FEATURE_AUDITING_KEY_EXCHANGE_ENABLED, "false"));
 
-            var api = PaillierTTPAPI.getInstance(EncryptionDefaults.TTP_ADDRESS);
-            try {
-                var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
-                list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
-            } catch (IOException | InterruptedException e) {
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
-                logger.warning("Could not get encryption key, defaulting to none");
-            }
+            // ===== Encryption Scheme Configuration =====
+            // Choose one of the following encryption schemes:
+            // 1. "bfv" - Brakerski-Fan-Vercauteren scheme for homomorphic encryption
+            //    - Fully homomorphic, big ciphertext size
+            //    - Requires TTP service running
+            // 2. "paillier" - Paillier homomorphic encryption
+            //    - Simpler
+            //    - Also requires TTP service
+            // 3. "none" - No encryption
+            //    - Use for testing or when encryption is not needed
+            
+            // Uncomment to use BFV instead
+            // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "bfv"));
+            
+            // Uncomment to use Paillier instead
+            // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
+            
+            // Uncomment to disable encryption
+            list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
 
             return list;
         }
