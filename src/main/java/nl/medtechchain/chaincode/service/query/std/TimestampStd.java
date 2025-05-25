@@ -19,7 +19,6 @@ public class TimestampStd implements Std{
         double mean = this.mean(encryptionInterface, descriptor, asset);
         double variance = 0;
         long count = 0;
-        long now = Instant.now().getEpochSecond();
         for(DeviceDataAsset a : asset){
             DeviceDataAsset.TimestampField value = (DeviceDataAsset.TimestampField) a.getDeviceData().getField(descriptor);
             long secs = 0;
@@ -29,31 +28,21 @@ public class TimestampStd implements Std{
                     count++;
                     break;
                 case ENCRYPTED:
-                    // TODO: proper encryption handling!!! yavor please fix this shit
+                    // TODO: proper encryption handling!!!
                     if(encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
                     secs = encryptionInterface.decryptLong(value.getEncrypted());
                     count++;
                     break;
                 default:
-                    // skips this unset asset, not contributing towards variance
+                    // skips this unset asset
                     continue;
             }
 
-            double delta; // gonna be days, like why not 
-            if(descriptor.getName().equals("warranty_expiry_date")){
-                delta = secs - now; // because we looking back to the future
-                delta /= secsDay;
-            }
-            else{
-                delta = now - secs; // we looking straight ahead towards the past
-                delta /= secsDay;
-            }
-
-            variance += (delta - mean) * (delta - mean); // heard a rummor that this is faster than math.pow
+            variance += (secs - mean) * (secs - mean); 
         }
 
-        if(count < 2) return new MeanAndStd(0, mean); // maxguardprotect3000
+        if(count < 2) return new MeanAndStd(0, mean); 
         return new MeanAndStd(Math.sqrt(variance / (count - 1)), mean);
     }
     
@@ -97,22 +86,8 @@ public class TimestampStd implements Std{
         if(cryptoSum != null) sum += encryptionInterface.decryptLong(cryptoSum);
         if(count == 0) return 0;
         double mean = sum / count;
-        long now = Instant.now().getEpochSecond();
-        double result = 0;
-
-        if(descriptor.getName().equals("production_date"))
-            result =  now - mean; // before how many seconds were the devices produced
-        else if(descriptor.getName().equals("last_service_date"))
-            result =  now -mean;
-        else if(descriptor.getName().equals("warranty_expiry_date"))
-            result = mean - now;
-        else if(descriptor.getName().equals("last_sync_time"))
-            result = now - mean;
-        else
-            // very much just in case
-            throw new IllegalStateException("Unknown field: " + descriptor.getName());
-
-        return result / secsDay; // convert to days
+        
+        return mean;
     }
 }
 
