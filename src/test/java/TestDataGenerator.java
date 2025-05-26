@@ -26,7 +26,6 @@ public class TestDataGenerator {
      * DeviceCategoryField category = 15;
      */
 
-    long seed;
     Random random;
 
     // used as base for all generations as a single definition of "now"
@@ -39,10 +38,21 @@ public class TestDataGenerator {
 
     // with seed
     public TestDataGenerator(long seed) {
-        this.seed = seed;
         this.random = new Random(seed);
     }
-
+    /*
+     * This method gets a map specifying field(String), the value for that field(Object)
+     * and how many such entries we want in the data - count (Integer). It also takes int n.
+     * 
+     * If the total number of elements is less than n the method will generate more random
+     * assets, guranteed to not colide and increase the count of map generated assets.
+     * 
+     * !!! It is up to the tester to make sure that Object is actaully the needed type for the specific field!
+     * 
+     * @param map: Map<String, Map<Object, Integer>>, a map of field(String), value(Object), count(Integer)
+     * @param n: int, total number of assets to generate
+     * @return List<DeviceDataAsset> the result
+     */
     public List<DeviceDataAsset> generateDeviceDataAssetsWithCount(Map<String, Map<Object, Integer>> map, int n) {
         List<DeviceDataAsset> assets = new ArrayList<>();
         Set<Object> excepts = new HashSet<>();
@@ -67,6 +77,7 @@ public class TestDataGenerator {
             }
         }
 
+        // if we need more random assets
         while(assets.size() < n){        
             Map<String, Object> mapy = new HashMap<>();
             for(String key : map.keySet()){
@@ -75,7 +86,7 @@ public class TestDataGenerator {
             assets.add(generateDeviceDataAsset(mapy));
         }
 
-        Collections.shuffle(assets); // why not
+        Collections.shuffle(assets, random); // why not
         return assets;
     }
 
@@ -84,7 +95,6 @@ public class TestDataGenerator {
      * @param n: int, number of assets to generate
      * @return List<DeviceDataAsset>
      */
-
     public List<DeviceDataAsset> generateDeviceDataAssets(Map<String, Object> map, int n) {
         List<DeviceDataAsset> assets = new ArrayList<>();
         for (int i = 0; i < n; i++) {
@@ -101,29 +111,29 @@ public class TestDataGenerator {
         DeviceDataAsset.DeviceData.Builder data = asset.getDataBuilder();
 
         // stings
-        data.setHospital(stringField(map.getOrDefault("hospital", randomHospital())));
-        data.setManufacturer(stringField(map.getOrDefault("manufacturer", randomManufacturer())));
-        data.setModel(stringField(map.getOrDefault("model", randomModel())));
-        data.setFirmwareVersion(stringField(map.getOrDefault("firmware_version", randomFirmwareVersion())));
-        data.setDeviceType(stringField(map.getOrDefault("device_type", randomDeviceType())));
+        data.setHospital(stringField((String)map.getOrDefault("hospital", randomHospital())));
+        data.setManufacturer(stringField((String)map.getOrDefault("manufacturer", randomManufacturer())));
+        data.setModel(stringField((String)map.getOrDefault("model", randomModel())));
+        data.setFirmwareVersion(stringField((String)map.getOrDefault("firmware_version", randomFirmwareVersion())));
+        data.setDeviceType(stringField((String)map.getOrDefault("device_type", randomDeviceType())));
 
         // ints
-        data.setUsageHours(intField(map.getOrDefault("usage_hours", randomUsageHours())));
-        data.setBatteryLevel(intField(map.getOrDefault("battery_level", randomBatteryLevel())));
-        data.setSyncFrequencySeconds(intField(map.getOrDefault("sync_frequency_seconds", randomSyncFrequencySeconds())));
+        data.setUsageHours(intField((Integer)map.getOrDefault("usage_hours", randomUsageHours())));
+        data.setBatteryLevel(intField((Integer)map.getOrDefault("battery_level", randomBatteryLevel())));
+        data.setSyncFrequencySeconds(intField((Integer)map.getOrDefault("sync_frequency_seconds", randomSyncFrequencySeconds())));
 
         // timestamps
-        data.setProductionDate(timestampField(map.getOrDefault("production_date", randomProductionDate())));
-        data.setLastServiceDate(timestampField(map.getOrDefault("last_service_date", randomLastServiceDate())));
-        data.setWarrantyExpiryDate(timestampField(map.getOrDefault("warranty_expiry_date", randomWarrantyExpiryDate())));
-        data.setLastSyncTime(timestampField(map.getOrDefault("last_sync_time", randomLastSyncTime())));
+        data.setProductionDate(timestampField((Timestamp)map.getOrDefault("production_date", randomProductionDate())));
+        data.setLastServiceDate(timestampField((Timestamp)map.getOrDefault("last_service_date", randomLastServiceDate())));
+        data.setWarrantyExpiryDate(timestampField((Timestamp)map.getOrDefault("warranty_expiry_date", randomWarrantyExpiryDate())));
+        data.setLastSyncTime(timestampField((Timestamp)map.getOrDefault("last_sync_time", randomLastSyncTime())));
 
         // bools
-        data.setActiveStatus(boolField(map.getOrDefault("active_status", randomActiveStatus())));
+        data.setActiveStatus(boolField((Boolean)map.getOrDefault("active_status", randomActiveStatus())));
 
         // enums    
-        data.setSpeciality(medField(map.getOrDefault("speciality", randomMedicalSpeciality())));
-        data.setCategory(catField(map.getOrDefault("category", randomDeviceCategory())));
+        data.setSpeciality(medField((MedicalSpeciality)map.getOrDefault("speciality", randomMedicalSpeciality())));
+        data.setCategory(catField((DeviceCategory)map.getOrDefault("category", randomDeviceCategory())));
 
         return asset.build();
     }
@@ -133,31 +143,31 @@ public class TestDataGenerator {
     /////////            /         ////////////
 
     // translations to devicedataasset fields
-    private static DeviceDataAsset.StringField stringField(String v) {
+    private DeviceDataAsset.StringField stringField(String v) {
         return DeviceDataAsset.StringField.newBuilder().setPlain(v).build();
     }
 
-    private static DeviceDataAsset.IntegerField intField(int v) {
+    private DeviceDataAsset.IntegerField intField(int v) {
         return DeviceDataAsset.IntegerField.newBuilder().setPlain(v).build();
     }
 
-    private static DeviceDataAsset.TimestampField timestampField(Timestamp v) {
+    private DeviceDataAsset.TimestampField timestampField(Timestamp v) {
         return DeviceDataAsset.TimestampField.newBuilder().setPlain(v).build();
     }
 
-    private static DeviceDataAsset.BoolField boolField(boolean b) {
+    private DeviceDataAsset.BoolField boolField(boolean b) {
         return DeviceDataAsset.BoolField.newBuilder().setPlain(b).build();
     }
 
-    private static DeviceDataAsset.MedicalSpecialityField medField(MedicalSpeciality m) {
+    private DeviceDataAsset.MedicalSpecialityField medField(MedicalSpeciality m) {
         return DeviceDataAsset.MedicalSpecialityField.newBuilder().setPlain(m).build();
     }
 
-    private static DeviceDataAsset.DeviceCategoryField catField(DeviceCategory c) {
+    private DeviceDataAsset.DeviceCategoryField catField(DeviceCategory c) {
         return DeviceDataAsset.DeviceCategoryField.newBuilder().setPlain(c).build();
     }
 
-    private static Object randomExcept(String field, Set<Object> excepts){
+    private Object randomExcept(String field, Set<Object> excepts){
         if(excepts.isEmpty()) return randomManager(field);
         Object candidate = randomManager(field);
 
@@ -168,7 +178,7 @@ public class TestDataGenerator {
         return candidate;
     }
 
-    private static Object randomManager(String field){
+    private Object randomManager(String field){
         switch(field){
             case "hospital":
                 return randomHospital();
@@ -205,38 +215,53 @@ public class TestDataGenerator {
         }
     }   
 
-    private static Object randomExceptManager(String field, Object except){
+    private Object randomExceptManager(String field, Object except){
         switch(field){
             case "hospital":
-                return randomHospitalExcept(except);
+                String opa = (String) except;
+                return randomHospitalExcept(opa);
             case "manufacturer":
-                return randomManufacturerExcept(except);
+                String opa2 = (String) except;
+                return randomManufacturerExcept(opa2);
             case "model":
-                return randomModelExcept(except);
+                String opa3 = (String) except;
+                return randomModelExcept(opa3);
             case "firmware_version":
-                return randomFirmwareVersionExcept(except);
+                String opa4 = (String) except;
+                return randomFirmwareVersionExcept(opa4);
             case "device_type":
-                return randomDeviceTypeExcept(except);
+                String opa5 = (String) except;
+                return randomDeviceTypeExcept(opa5);
             case "speciality":
-                return randomMedicalSpecialityExcept(except);
+                MedicalSpeciality opa6 = (MedicalSpeciality) except;
+                return randomMedicalSpecialityExcept(opa6);
             case "category":
-                return randomDeviceCategoryExcept(except);
+                DeviceCategory opa7 = (DeviceCategory) except;
+                return randomDeviceCategoryExcept(opa7);
             case "active_status":
-                return randomActiveStatusExcept(except);
+                boolean opa8 = (boolean) except;
+                return randomActiveStatusExcept(opa8);
             case "last_sync_time":
-                return randomLastSyncTimeExcept(except);
+                Timestamp opa9 = (Timestamp) except;
+                return randomLastSyncTimeExcept(opa9);
             case "last_service_date":
-                return randomLastServiceDateExcept(except);
+                Timestamp opa10 = (Timestamp) except;
+                return randomLastServiceDateExcept(opa10);
             case "warranty_expiry_date":
-                return randomWarrantyExpiryDateExcept(except);
+                Timestamp opa11 = (Timestamp) except;
+                return randomWarrantyExpiryDateExcept(opa11);
             case "production_date":
-                return randomProductionDateExcept(except);
+                Timestamp opa12 = (Timestamp) except;
+                return randomProductionDateExcept(opa12);
             case "usage_hours":
-                return randomUsageHoursExcept(except);
+                int opa13 = (int) except;
+                return randomUsageHoursExcept(opa13);
             case "battery_level":
-                return randomBatteryLevelExcept(except);
+                int opa14 = (int) except;
+                return randomBatteryLevelExcept(opa14);
             case "sync_frequency_seconds":
-                return randomSyncFrequencySecondsExcept(except);
+                int opa15 = (int) except;
+                return randomSyncFrequencySecondsExcept(opa15);
             default:
                 return null;
         }
