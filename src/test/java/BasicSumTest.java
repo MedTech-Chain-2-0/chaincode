@@ -45,18 +45,48 @@ public class BasicSumTest {
         return result.getSumResult();
     }
 
+
+    // single object
     @Test 
     public void t1(){
         Map<String, Map<Object, Integer>> spec = new HashMap<>();
         Map<Object, Integer> countMap = new HashMap<>();
         countMap.put(100, 1);
-        long expected = 100;
         spec.put("usage_hours", countMap);
+        long expected = 100;
         TestDataGenerator generator = new TestDataGenerator();
         List<DeviceDataAsset> assets = generator.generateDeviceDataAssetsWithCount(spec, 1);
         long result = sum(assets);
         Assertions.assertEquals(expected, result, "Sum is different than expected");
     }
-    
 
+    // multiple objects
+    @Test
+    public void t2(){
+        Map<String, Map<Object, Integer>> spec = new HashMap<>();
+        Map<Object, Integer> countMap = new HashMap<>();
+        countMap.put(100, 3);
+        countMap.put(200, 4);
+        countMap.put(300, 1);
+        countMap.put(400, 2);
+        spec.put("usage_hours", countMap);
+        long expected = 100 * 3 + 200 * 4 + 300 + 400*2;
+        TestDataGenerator generator = new TestDataGenerator();
+        List<DeviceDataAsset> assets = generator.generateDeviceDataAssetsWithCount(spec, 1);
+        long result = sum(assets);
+        System.out.println("Result: " + result);
+        Assertions.assertEquals(expected, result, "Sum is different than expected");
+    }
+
+    // no objects
+    @Test
+    public void t3(){
+        Map<String, Map<Object, Integer>> spec = new HashMap<>();
+        spec.put("usage_hours", new HashMap<>());
+        long expected = 0;
+        TestDataGenerator generator = new TestDataGenerator();
+        List<DeviceDataAsset> assets = generator.generateDeviceDataAssetsWithCount(spec, 0);
+        long result = sum(assets);
+        Assertions.assertEquals(expected, result, "Sum is different than expected");
+    }
 }

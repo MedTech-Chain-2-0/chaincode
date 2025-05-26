@@ -351,23 +351,32 @@ public class TestDataGenerator {
     }
 
     // values is default java method for enums
+    // some values are not designed to be handled by the protos
     private MedicalSpeciality randomMedicalSpeciality() {
-        return MedicalSpeciality.values()[random.nextInt(MedicalSpeciality.values().length)];
+        MedicalSpeciality speciality = MedicalSpeciality.values()[random.nextInt(MedicalSpeciality.values().length)];
+        while(speciality.equals(MedicalSpeciality.MEDICAL_SPECIALITY_UNSPECIFIED) || speciality.equals(MedicalSpeciality.UNRECOGNIZED)) {
+            speciality = MedicalSpeciality.values()[random.nextInt(MedicalSpeciality.values().length)];
+        }
+        return speciality;
     }
     private MedicalSpeciality randomMedicalSpecialityExcept(MedicalSpeciality except) {
         MedicalSpeciality speciality = MedicalSpeciality.values()[random.nextInt(MedicalSpeciality.values().length)];
-        while(speciality.equals(except)) {
+        while(speciality.equals(except) || speciality.equals(MedicalSpeciality.MEDICAL_SPECIALITY_UNSPECIFIED) || speciality.equals(MedicalSpeciality.UNRECOGNIZED)) {
             speciality = MedicalSpeciality.values()[random.nextInt(MedicalSpeciality.values().length)];
         }
         return speciality;
     }
 
     private DeviceCategory randomDeviceCategory() {
-        return DeviceCategory.values()[random.nextInt(DeviceCategory.values().length)];
+        DeviceCategory category = DeviceCategory.values()[random.nextInt(DeviceCategory.values().length)];
+        while(category.equals(DeviceCategory.DEVICE_CATEGORY_UNSPECIFIED) || category.equals(DeviceCategory.UNRECOGNIZED)) {
+            category = DeviceCategory.values()[random.nextInt(DeviceCategory.values().length)];
+        }
+        return category;
     }
     private DeviceCategory randomDeviceCategoryExcept(DeviceCategory except) {
         DeviceCategory category = DeviceCategory.values()[random.nextInt(DeviceCategory.values().length)];
-        while(category.equals(except)) {
+        while(category.equals(except) || category.equals(DeviceCategory.DEVICE_CATEGORY_UNSPECIFIED) || category.equals(DeviceCategory.UNRECOGNIZED)) {
             category = DeviceCategory.values()[random.nextInt(DeviceCategory.values().length)];
         }
         return category;
