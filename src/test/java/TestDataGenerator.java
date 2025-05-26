@@ -119,7 +119,6 @@ public class TestDataGenerator {
     private static DeviceDataAsset.DeviceCategoryField catField(DeviceCategory c) {
         return DeviceDataAsset.DeviceCategoryField.newBuilder().setPlain(c).build();
     }
-
     // random generators
     // reuses the Random instance
     private int randomInt(int min, int max) {
