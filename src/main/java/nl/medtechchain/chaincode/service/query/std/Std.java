@@ -35,7 +35,6 @@ public interface Std {
                     return new TimestampStd();
                 default:
                     // should not be reached
-                    // maybe throw smth idk
                     return (encryptionInterface, descriptor, asset) -> new MeanAndStd(0, 0);
             }
         }
