@@ -17,7 +17,7 @@ public class TimestampHistogram implements Histogram{
     @Override
     public Map<String, Long> histogram(PlatformEncryptionInterface encryptionInterface, FieldDescriptor descriptor,
             List<DeviceDataAsset> assets, long binSize) {
-        long bin = binSize * 86400;
+        long bin = binSize * 86400; // seconds in a day
         // TODO: add support for nicely picked timestamp bins, currently they start from 16th of December
         // might also get handled front end side
         Map<String, Long> result = new HashMap<String, Long>();

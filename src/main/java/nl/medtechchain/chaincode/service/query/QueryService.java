@@ -8,6 +8,7 @@ import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
 import nl.medtechchain.chaincode.service.query.average.Average;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCount;
 import nl.medtechchain.chaincode.service.query.histogram.Histogram;
+import nl.medtechchain.chaincode.service.query.std.Std;
 import nl.medtechchain.chaincode.service.query.sum.Sum;
 import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCount;
 import nl.medtechchain.proto.common.ChaincodeError;
@@ -19,6 +20,7 @@ import nl.medtechchain.proto.devicedata.MedicalSpeciality;
 import nl.medtechchain.proto.query.Filter;
 import nl.medtechchain.proto.query.Query;
 import nl.medtechchain.proto.query.QueryResult;
+import nl.medtechchain.proto.query.QueryResult.MeanAndStd;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -77,6 +79,9 @@ public class QueryService {
 
                 // extra check for the bin size
                 if(query.getBinSize() <= 0) return Optional.of(invalidQueryError("Bin size hast to be bigger than 0"));
+                break;
+            case STD:
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_STD_FIELDS).orElse("");
                 break;
         }
 
@@ -266,7 +271,38 @@ public class QueryService {
 
         var result = Histogram.Factory.getInstance(fieldType).histogram(encryptionInterface, descriptor, assets, query.getBinSize());
 
+        switch (mechanismType) {
+            case LAPLACE:
+                var noise = new LaplaceNoise();
+                for(Map.Entry<String, Long> entry : result.entrySet()){
+                    entry.setValue(noise.addNoise(entry.getValue(), 1, getEpsilon(), 0));
+                }
+        }
+
         return QueryResult.newBuilder().setGroupedCountResult(QueryResult.GroupedCount.newBuilder().putAllMap(result).build()).build();
+
+    }
+
+    public QueryResult std(Query query, List<DeviceDataAsset> assets) {
+        var descriptor = deviceDataDescriptorByName(query.getTargetField())
+                         .orElseThrow(() ->
+                             new IllegalStateException("unknown target field " + query.getTargetField()));
+
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        Std.MeanAndStd ms = Std.Factory.getInstance(fieldType).std(encryptionInterface, descriptor, assets);
+        double mean = ms.mean();
+        double std = ms.std();
+
+        switch (mechanismType) {
+            case LAPLACE:
+                var noise = new LaplaceNoise();
+                mean = noise.addNoise(mean, 1, getEpsilon(), 0);
+                std = noise.addNoise(std, 1, getEpsilon(), 0);
+        }
+
+        QueryResult.MeanAndStd meanAndStd = QueryResult.MeanAndStd.newBuilder().setMean(mean).setStd(std).build();
+        return QueryResult.newBuilder().setMeanStd(meanAndStd).build();
 
     }
 
