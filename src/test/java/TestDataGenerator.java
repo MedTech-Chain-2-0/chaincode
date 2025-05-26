@@ -108,7 +108,7 @@ public class TestDataGenerator {
         DeviceDataAsset.Builder asset = DeviceDataAsset.newBuilder().setTimestamp(base)
                 .setConfigId(UUID.randomUUID().toString());
 
-        DeviceDataAsset.DeviceData.Builder data = asset.getDataBuilder();
+        DeviceDataAsset.DeviceData.Builder data = asset.getDeviceDataBuilder();
 
         // stings
         data.setHospital(stringField((String)map.getOrDefault("hospital", randomHospital())));
