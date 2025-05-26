@@ -394,13 +394,13 @@ public class TestDataGenerator {
     }
 
     private int randomUsageHours() {
-        return random.nextInt(10000);
+        return randomInt(0, 10000);
     }
 
     private int randomUsageHoursExcept(int except) {
-        int usageHours = random.nextInt(10000);
+        int usageHours = randomInt(0, 10000);
         while(usageHours == except) {
-            usageHours = random.nextInt(10000);
+            usageHours = randomInt(0, 10000);
         }
         return usageHours;
     }
@@ -440,25 +440,25 @@ public class TestDataGenerator {
     }
 
     private int randomBatteryLevel() {
-        return random.nextInt(100);
+        return randomInt(0, 100);
     }   
 
     private int randomBatteryLevelExcept(int except) {
-        int batteryLevel = random.nextInt(100);
+        int batteryLevel = randomInt(0, 100);
         while(batteryLevel == except) {
-            batteryLevel = random.nextInt(100);
+            batteryLevel = randomInt(0, 100);
         }
         return batteryLevel;
     }
 
     private int randomSyncFrequencySeconds() {
-        return random.nextInt(3600);
+        return randomInt(0, 3600);
     }
 
     private int randomSyncFrequencySecondsExcept(int except) {
-        int syncFrequencySeconds = random.nextInt(3600);
+        int syncFrequencySeconds = randomInt(0, 3600);
         while(syncFrequencySeconds == except) {
-            syncFrequencySeconds = random.nextInt(3600);
+            syncFrequencySeconds = randomInt(0, 3600);
         }
         return syncFrequencySeconds;    
     }
