@@ -106,7 +106,7 @@ public class TestDataGenerator {
     public DeviceDataAsset generateDeviceDataAsset(Map<String, Object> map) {
         // default stuff on each asset
         DeviceDataAsset.Builder asset = DeviceDataAsset.newBuilder().setTimestamp(base)
-                .setConfigId(UUID.randomUUID().toString());
+                .setConfigId(randomString(10000));
 
         DeviceDataAsset.DeviceData.Builder data = asset.getDeviceDataBuilder();
 
