@@ -8,7 +8,7 @@ services:
     environment:
       CORE_PEER_LOCALMSPID: MedTechChainPeerMSP
       CORE_PEER_ADDRESS: peer0.medtechchain.nl:7052
-      CORE_CHAINCODE_ID_NAME: medtechchain_1.0.0:0ab14e98681c722ac90489fb6b549130dfcd291339cd7228e3052b0aa3e36cfb
+      CORE_CHAINCODE_ID_NAME: medtechchain_1.0.0:bb71de8734372cfb7d11cb835caf36d7471f1e5aa1de66fbf0b639a931d88ea1
       CHAINCODE_SERVER_ADDRESS: 0.0.0.0:9999
       CORE_PEER_TLS_ENABLED: true
       CORE_PEER_TLS_ROOTCERT_FILE: /crypto/cert.pem
@@ -16,8 +16,10 @@ services:
       CORE_TLS_CLIENT_KEY_FILE: /crypto/key.pem
       CORE_TLS_CLIENT_CERT_PATH: /crypto/cert.pem.b64
       CORE_TLS_CLIENT_CERT_FILE: /crypto/cert.pem
+      JAVA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
     ports:
       - "8061:9999"
+      - "5005:5005"
     networks:
       - medtechchain
     volumes:
@@ -32,7 +34,7 @@ services:
     environment:
       CORE_PEER_LOCALMSPID: HealPointPeerMSP
       CORE_PEER_ADDRESS: peer0.healpoint.nl:7052
-      CORE_CHAINCODE_ID_NAME: medtechchain_1.0.0:0ab14e98681c722ac90489fb6b549130dfcd291339cd7228e3052b0aa3e36cfb
+      CORE_CHAINCODE_ID_NAME: medtechchain_1.0.0:bb71de8734372cfb7d11cb835caf36d7471f1e5aa1de66fbf0b639a931d88ea1
       CHAINCODE_SERVER_ADDRESS: 0.0.0.0:9999
       CORE_PEER_TLS_ENABLED: true
       CORE_PEER_TLS_ROOTCERT_FILE: /crypto/cert.pem
@@ -40,8 +42,10 @@ services:
       CORE_TLS_CLIENT_KEY_FILE: /crypto/key.pem
       CORE_TLS_CLIENT_CERT_PATH: /crypto/cert.pem.b64
       CORE_TLS_CLIENT_CERT_FILE: /crypto/cert.pem
+      JAVA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
     ports:
       - "9061:9999"
+      - "5006:5005"
     networks:
       - healpoint
     volumes:
@@ -56,7 +60,7 @@ services:
     environment:
       CORE_PEER_LOCALMSPID: LifeCarePeerMSP
       CORE_PEER_ADDRESS: peer0.lifecare.nl:7052
-      CORE_CHAINCODE_ID_NAME: medtechchain_1.0.0:0ab14e98681c722ac90489fb6b549130dfcd291339cd7228e3052b0aa3e36cfb
+      CORE_CHAINCODE_ID_NAME: medtmedtechchain_1.0.0:bb71de8734372cfb7d11cb835caf36d7471f1e5aa1de66fbf0b639a931d88ea1
       CHAINCODE_SERVER_ADDRESS: 0.0.0.0:9999
       CORE_PEER_TLS_ENABLED: true
       CORE_PEER_TLS_ROOTCERT_FILE: /crypto/cert.pem
@@ -64,8 +68,10 @@ services:
       CORE_TLS_CLIENT_KEY_FILE: /crypto/key.pem
       CORE_TLS_CLIENT_CERT_PATH: /crypto/cert.pem.b64
       CORE_TLS_CLIENT_CERT_FILE: /crypto/cert.pem
+      JAVA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
     ports:
       - "10061:9999"
+      - "5007:5005"
     networks:
       - lifecare
     volumes:

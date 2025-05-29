@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
-exec java -jar /app/chaincode.jar
+exec java ${JAVA_OPTS:-} -jar /app/chaincode.jar
