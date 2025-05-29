@@ -28,7 +28,6 @@ public class TimestampStd implements Std{
                     count++;
                     break;
                 case ENCRYPTED:
-                    // TODO: proper encryption handling!!!
                     if(encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
                     secs = encryptionInterface.decryptLong(value.getEncrypted());
@@ -50,7 +49,7 @@ public class TimestampStd implements Std{
     List<DeviceDataAsset> asset) {
         double sum = 0;
         long count = 0;
-        String cryptoSum = null; // To be investigated if done right/ or fixed later on
+        String cryptoSum = null; 
 
         for(DeviceDataAsset a : asset){
             DeviceDataAsset.TimestampField value = (DeviceDataAsset.TimestampField) a.getDeviceData().getField(descriptor);
@@ -60,13 +59,8 @@ public class TimestampStd implements Std{
                     count++;
                     break;
                 case ENCRYPTED:
-                    // TODO: proper encryption handling!!!
-                    // this is done like the previous developers handled encryption case in average query
-                    // average query might be dropped in the future, to be discussed
-                    // seems logical but needs some special attention
                     if(encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
-
                     if (encryptionInterface.isHomomorphic()) {
                         if (cryptoSum == null)
                             cryptoSum = value.getEncrypted();
@@ -75,7 +69,6 @@ public class TimestampStd implements Std{
                     }
                     else
                         sum += encryptionInterface.decryptLong(value.getEncrypted());
-
                     count++;
                     break;
                 default:

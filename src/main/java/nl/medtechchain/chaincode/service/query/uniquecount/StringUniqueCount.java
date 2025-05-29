@@ -28,7 +28,6 @@ public class StringUniqueCount implements UniqueCount {
                     s = val.getPlain();
                     break;
                 case ENCRYPTED:
-                    // TODO: chech if this is right. Still confused whether decrypting here is ok, but there is not other way i suppose
                     if (encryptionInterface == null)
                         throw new IllegalStateException("no enc-interface");
                     s = encryptionInterface.decryptString(val.getEncrypted());

@@ -44,6 +44,8 @@ public class IntegerStd implements Std{
         long count = 0;
         double sum = 0;
 
+        List<String> encrypted = new ArrayList<>();
+
         // loop through assets
         for(DeviceDataAsset a : assets){
             var value = (DeviceDataAsset.IntegerField) a.getDeviceData().getField(descriptor);
@@ -53,16 +55,36 @@ public class IntegerStd implements Std{
                     count++;
                     break;
                 case ENCRYPTED:
-                    // TODO: proper encryption handling!!!
                     if(encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
-                    sum += encryptionInterface.decryptLong(value.getEncrypted());
+                    if encryptionInterface.isHomomorphic() 
+                        encrypted.add(value.getEncrypted());
+                    else {
+                        // no homomorphic encryption -> we have to decrypt
+                        sum += encryptionInterface.decryptLong(value.getEncrypted());
+                    }
                     count++;
                     break;
                 default:
                     // should not be reached
                     break;
             } 
+        }
+
+        
+        if (!encrypted.isEmpty()) {
+            String ctSum;
+            if (encrypted.size() == 1) {
+                ctSum = encrypted.get(0);
+            }
+            else if (encryptionInterface instanceof PlatformBfvEncryption)
+                ctSum = ((PlatformBfvEncryption)encryptionInterface).addAll(encrypted);
+            else {                               
+                ctSum = encrypted.get(0);
+                for (int i = 1; i < encrypted.size(); i++)
+                    ctSum = ((HomomorphicEncryptionScheme)encryptionInterface).add(ctSum, encrypted.get(i));
+            }
+            sum += encryptionInterface.decryptLong(ctSum);
         }
 
         if (count == 0) return 0;
