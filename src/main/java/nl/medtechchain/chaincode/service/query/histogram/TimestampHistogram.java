@@ -29,6 +29,9 @@ public class TimestampHistogram implements Histogram{
                     value = field.getPlain().getSeconds();
                     break;
                 case ENCRYPTED:
+                    if(encryptionInterface == null) {
+                        throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
+                    }
                     value = encryptionInterface.decryptLong(field.getEncrypted());
                     break;
                 default:

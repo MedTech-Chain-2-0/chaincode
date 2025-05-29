@@ -29,7 +29,6 @@ public class IntegerHistogram implements Histogram {
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
                     }
                     value = encryptionInterface.decryptLong(field.getEncrypted());
-                    // TODO: add homomorphic operations
                     break;
 
                 default:
