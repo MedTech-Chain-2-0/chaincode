@@ -96,18 +96,15 @@ public class ConfigDefaults {
             // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "bfv"));
             
             // Uncomment to use Paillier instead
-            var api = PaillierTTPAPI.getInstance(EncryptionDefaults.TTP_ADDRESS);
-            
-            try {
-                var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
-                list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
-            } catch (IOException | InterruptedException e) {
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
-                logger.warning("Could not get encryption key, defaulting to none");
-            }
-
-            // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
+            // var api = PaillierTTPAPI.getInstance(EncryptionDefaults.TTP_ADDRESS);
+            // try {
+            //     var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
+            //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
+            //     list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
+            // } catch (IOException | InterruptedException e) {
+            //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
+            //     logger.warning("Could not get encryption key, defaulting to none");
+            // }
             
             // Uncomment to disable encryption
             // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
