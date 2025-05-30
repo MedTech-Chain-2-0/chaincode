@@ -40,6 +40,21 @@ public class TestDataGenerator {
     public TestDataGenerator(long seed) {
         this.random = new Random(seed);
     }
+
+    // helper class
+    public class Cyphertext{
+        private String cyphertext;
+        public Cyphertext(String cyphertext){
+            this.cyphertext = cyphertext;
+        }
+        public String getCyphertext(){
+            return cyphertext;
+        }
+        public void setCyphertext(String cyphertext){
+            this.cyphertext = cyphertext;
+        }
+    }
+
     /*
      * This method gets a map specifying field(String), the value for that field(Object)
      * and how many such entries we want in the data - count (Integer). It also takes int n.
@@ -111,29 +126,29 @@ public class TestDataGenerator {
         DeviceDataAsset.DeviceData.Builder data = asset.getDeviceDataBuilder();
 
         // stings
-        data.setHospital(stringField((String)map.getOrDefault("hospital", randomHospital())));
-        data.setManufacturer(stringField((String)map.getOrDefault("manufacturer", randomManufacturer())));
-        data.setModel(stringField((String)map.getOrDefault("model", randomModel())));
-        data.setFirmwareVersion(stringField((String)map.getOrDefault("firmware_version", randomFirmwareVersion())));
-        data.setDeviceType(stringField((String)map.getOrDefault("device_type", randomDeviceType())));
+        data.setHospital(stringField(map.getOrDefault("hospital", randomHospital())));
+        data.setManufacturer(stringField(map.getOrDefault("manufacturer", randomManufacturer())));
+        data.setModel(stringField(map.getOrDefault("model", randomModel())));
+        data.setFirmwareVersion(stringField(map.getOrDefault("firmware_version", randomFirmwareVersion())));
+        data.setDeviceType(stringField(map.getOrDefault("device_type", randomDeviceType())));
 
         // ints
-        data.setUsageHours(intField((Integer)map.getOrDefault("usage_hours", randomUsageHours())));
-        data.setBatteryLevel(intField((Integer)map.getOrDefault("battery_level", randomBatteryLevel())));
-        data.setSyncFrequencySeconds(intField((Integer)map.getOrDefault("sync_frequency_seconds", randomSyncFrequencySeconds())));
+        data.setUsageHours(intField(map.getOrDefault("usage_hours", randomUsageHours())));
+        data.setBatteryLevel(intField(map.getOrDefault("battery_level", randomBatteryLevel())));
+        data.setSyncFrequencySeconds(intField(map.getOrDefault("sync_frequency_seconds", randomSyncFrequencySeconds())));
 
         // timestamps
-        data.setProductionDate(timestampField((Timestamp)map.getOrDefault("production_date", randomProductionDate())));
-        data.setLastServiceDate(timestampField((Timestamp)map.getOrDefault("last_service_date", randomLastServiceDate())));
-        data.setWarrantyExpiryDate(timestampField((Timestamp)map.getOrDefault("warranty_expiry_date", randomWarrantyExpiryDate())));
-        data.setLastSyncTime(timestampField((Timestamp)map.getOrDefault("last_sync_time", randomLastSyncTime())));
+        data.setProductionDate(timestampField(map.getOrDefault("production_date", randomProductionDate())));
+        data.setLastServiceDate(timestampField(map.getOrDefault("last_service_date", randomLastServiceDate())));
+        data.setWarrantyExpiryDate(timestampField(map.getOrDefault("warranty_expiry_date", randomWarrantyExpiryDate())));
+        data.setLastSyncTime(timestampField(map.getOrDefault("last_sync_time", randomLastSyncTime())));
 
         // bools
-        data.setActiveStatus(boolField((Boolean)map.getOrDefault("active_status", randomActiveStatus())));
+        data.setActiveStatus(boolField(map.getOrDefault("active_status", randomActiveStatus())));
 
         // enums    
-        data.setSpeciality(medField((MedicalSpeciality)map.getOrDefault("speciality", randomMedicalSpeciality())));
-        data.setCategory(catField((DeviceCategory)map.getOrDefault("category", randomDeviceCategory())));
+        data.setSpeciality(medField(map.getOrDefault("speciality", randomMedicalSpeciality())));
+        data.setCategory(catField(map.getOrDefault("category", randomDeviceCategory())));
 
         return asset.build();
     }
@@ -143,28 +158,41 @@ public class TestDataGenerator {
     /////////            /         ////////////
 
     // translations to devicedataasset fields
-    private DeviceDataAsset.StringField stringField(String v) {
-        return DeviceDataAsset.StringField.newBuilder().setPlain(v).build();
+    // this is actually not so boring, it catches whether we using encryption or not.
+    private DeviceDataAsset.StringField stringField(Object v) {
+        if(v instanceof Cyphertext) return DeviceDataAsset.StringField.newBuilder().setEncrypted(((Cyphertext) v).getCyphertext()).build();
+        else if(v instanceof String) return DeviceDataAsset.StringField.newBuilder().setPlain((String) v).build();
+        else throw new IllegalArgumentException("Invalid type inside data generation for string,: " + v.getClass());
     }
 
-    private DeviceDataAsset.IntegerField intField(int v) {
-        return DeviceDataAsset.IntegerField.newBuilder().setPlain(v).build();
+    private DeviceDataAsset.IntegerField intField(Object v) {
+        if(v instanceof Cyphertext) return DeviceDataAsset.IntegerField.newBuilder().setEncrypted(((Cyphertext) v).getCyphertext()).build();
+        else if(v instanceof Integer) return DeviceDataAsset.IntegerField.newBuilder().setPlain((Integer) v).build();
+        else throw new IllegalArgumentException("Invalid type inside data generation for int,: " + v.getClass());
     }
 
-    private DeviceDataAsset.TimestampField timestampField(Timestamp v) {
-        return DeviceDataAsset.TimestampField.newBuilder().setPlain(v).build();
+    private DeviceDataAsset.TimestampField timestampField(Object v) {
+        if(v instanceof Cyphertext) return DeviceDataAsset.TimestampField.newBuilder().setEncrypted(((Cyphertext) v).getCyphertext()).build();
+        else if(v instanceof Timestamp) return DeviceDataAsset.TimestampField.newBuilder().setPlain((Timestamp) v).build();
+        else throw new IllegalArgumentException("Invalid type inside data generation for timestamp,: " + v.getClass());
     }
 
-    private DeviceDataAsset.BoolField boolField(boolean b) {
-        return DeviceDataAsset.BoolField.newBuilder().setPlain(b).build();
+    private DeviceDataAsset.BoolField boolField(Object v) {
+        if(v instanceof Cyphertext) return DeviceDataAsset.BoolField.newBuilder().setEncrypted(((Cyphertext) v).getCyphertext()).build();
+        else if(v instanceof Boolean) return DeviceDataAsset.BoolField.newBuilder().setPlain((Boolean) v).build();
+        else throw new IllegalArgumentException("Invalid type inside data generation for bool,: " + v.getClass());
     }
 
-    private DeviceDataAsset.MedicalSpecialityField medField(MedicalSpeciality m) {
-        return DeviceDataAsset.MedicalSpecialityField.newBuilder().setPlain(m).build();
+    private DeviceDataAsset.MedicalSpecialityField medField(Object v) {
+        if(v instanceof Cyphertext) return DeviceDataAsset.MedicalSpecialityField.newBuilder().setEncrypted(((Cyphertext) v).getCyphertext()).build();
+        else if(v instanceof MedicalSpeciality) return DeviceDataAsset.MedicalSpecialityField.newBuilder().setPlain((MedicalSpeciality) v).build();
+        else throw new IllegalArgumentException("Invalid type inside data generation for medical speciality,: " + v.getClass());
     }
 
-    private DeviceDataAsset.DeviceCategoryField catField(DeviceCategory c) {
-        return DeviceDataAsset.DeviceCategoryField.newBuilder().setPlain(c).build();
+    private DeviceDataAsset.DeviceCategoryField catField(Object v) {
+        if(v instanceof Cyphertext) return DeviceDataAsset.DeviceCategoryField.newBuilder().setEncrypted(((Cyphertext) v).getCyphertext()).build();
+        else if(v instanceof DeviceCategory) return DeviceDataAsset.DeviceCategoryField.newBuilder().setPlain((DeviceCategory) v).build();
+        else throw new IllegalArgumentException("Invalid type inside data generation for device category,: " + v.getClass());
     }
 
     private Object randomExcept(String field, Set<Object> excepts){

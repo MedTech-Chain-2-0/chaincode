@@ -56,6 +56,13 @@ public class QueryService {
         this.mechanismType = type;
     }
 
+    // deterministic queryService for testing purposes
+    public QueryService(PlatformConfig platformConfig, PlatformEncryptionInterface encryptionInterface) {
+        this.encryptionInterface = encryptionInterface;
+        this.platformConfig = platformConfig;
+        this.mechanismType = MechanismType.NONE;
+    }
+
     public Optional<ChaincodeError> validateQuery(Query query) {
         String validFields = "";
         switch (query.getQueryType()) {

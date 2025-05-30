@@ -89,4 +89,5 @@ public class BasicSumTest {
         long result = sum(assets);
         Assertions.assertEquals(expected, result, "Sum is different than expected");
     }
+
 }

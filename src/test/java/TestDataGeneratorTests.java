@@ -81,11 +81,13 @@ public class TestDataGeneratorTests {
     @Test
     public void countTest2() {
         TestDataGenerator generator = new TestDataGenerator();
+        Map<String, Map<Object, Integer>> spec = new HashMap<>();
         Map<Object, Integer> countMap = new HashMap<>();
         countMap.put(50, 3);
         countMap.put(60, 1);
         countMap.put(30, 4);
-        List<DeviceDataAsset> assets = generator.generateDeviceDataAssetsWithCount(countMap, 12);
+        spec.put("battery_level", countMap);
+        List<DeviceDataAsset> assets = generator.generateDeviceDataAssetsWithCount(spec, 12);
         Assertions.assertEquals(12, assets.size(), "Total number of assets is werid");
     }
 
@@ -104,6 +106,65 @@ public class TestDataGeneratorTests {
             DeviceDataAsset a1 = assets1.get(i);
             DeviceDataAsset a2 = assets2.get(i);
             Assertions.assertTrue(a1.equals(a2), "Assets are not equal");
+        }
+    }
+
+    @Test
+    public void encryptedFieldTest1() {
+        TestDataGenerator generator = new TestDataGenerator();
+        TestDataGenerator.Cyphertext cypher = generator.new Cyphertext("latipsoh");
+
+        Map<String, Object> overrides = new HashMap<>();
+        overrides.put("hospital", cypher);
+
+        List<DeviceDataAsset> assets = generator.generateDeviceDataAssets(overrides, 3);
+
+        for (DeviceDataAsset asset : assets) {
+            DeviceDataAsset.StringField hospital = asset.getDeviceData().getHospital();
+            Assertions.assertTrue(hospital.hasEncrypted(), "field not encrypted");
+            Assertions.assertFalse(hospital.hasPlain(), "field should not have plain value ");
+            Assertions.assertEquals("latipsoh", hospital.getEncrypted(), "Encrypted mismatch");
+        }
+    }
+
+    @Test
+    public void encryptedFieldTest2() {
+        TestDataGenerator generator = new TestDataGenerator();
+        TestDataGenerator.Cyphertext cypher = generator.new Cyphertext("78");
+
+        Map<String, Object> overrides = new HashMap<>();
+        overrides.put("battery_level", cypher);
+
+        List<DeviceDataAsset> assets = generator.generateDeviceDataAssets(overrides, 5);
+
+        for (DeviceDataAsset asset : assets) {
+            DeviceDataAsset.IntegerField battery = asset.getDeviceData().getBatteryLevel();
+            Assertions.assertTrue(battery.hasEncrypted(), "field not encrypted");
+            Assertions.assertFalse(battery.hasPlain(), "field should not have plain value");
+            Assertions.assertEquals("78", battery.getEncrypted(), "Encrypted mismatch");
+        }
+    }
+    
+    @Test
+    public void encryptedCountTest() {
+        TestDataGenerator generator = new TestDataGenerator();
+        TestDataGenerator.Cyphertext cypher = generator.new Cyphertext("78");
+
+        Map<Object, Integer> countMap = new HashMap<>();
+        countMap.put(cypher, 4);
+
+        Map<String, Map<Object, Integer>> spec = new HashMap<>();
+        spec.put("battery_level", countMap);
+
+        List<DeviceDataAsset> assets = generator.generateDeviceDataAssetsWithCount(spec, 4);
+
+        Assertions.assertEquals(4, assets.size(), "Incorrect number of assets generated");
+
+        for (DeviceDataAsset asset : assets) {
+            DeviceDataAsset.IntegerField battery = asset.getDeviceData().getBatteryLevel();
+            Assertions.assertTrue(battery.hasEncrypted(), "field not encrypted");
+            Assertions.assertFalse(battery.hasPlain(), "field should not have plain value");
+            Assertions.assertEquals("78", battery.getEncrypted(), "Encrypted mismatch");
         }
     }
 }
