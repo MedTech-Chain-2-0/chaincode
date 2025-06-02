@@ -24,7 +24,7 @@ build:
     - ./gradlew build --no-daemon -x checkstyleMain -x checkstyleTest -x test
   artifacts:
     paths:
-      - build/
+      - build/libs/*.jar
     expire_in: 1 hour
 
 test:
