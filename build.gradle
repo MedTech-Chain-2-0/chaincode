@@ -102,3 +102,4 @@ distZip.dependsOn shadowJar
 distTar.dependsOn shadowJar
 
 startScripts.dependsOn shadowJar
+startShadowScripts.dependsOn jar

@@ -2,8 +2,11 @@ package nl.medtechchain.chaincode.service.query.std;
 
 import com.google.protobuf.Descriptors;
 import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
+import nl.medtechchain.chaincode.service.encryption.PlatformBfvEncryption;
+import nl.medtechchain.chaincode.service.encryption.HomomorphicEncryptionScheme;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
 import java.util.List;
+import java.util.ArrayList;
 
 public class IntegerStd implements Std{
     @Override
