@@ -57,7 +57,7 @@ public class IntegerStd implements Std{
                 case ENCRYPTED:
                     if(encryptionInterface == null)
                         throw new IllegalStateException("Field " + descriptor.getName() + " is encrypted, but the platform is not properly configured to use encryption.");
-                    if encryptionInterface.isHomomorphic() 
+                    if (encryptionInterface.isHomomorphic()) 
                         encrypted.add(value.getEncrypted());
                     else {
                         // no homomorphic encryption -> we have to decrypt
