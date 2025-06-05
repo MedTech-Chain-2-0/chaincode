@@ -2,7 +2,8 @@ package nl.medtechchain.chaincode.contract;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Timestamp;
-import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
+import nl.medtechchain.chaincode.service.encryption.EncryptionService;
+import nl.medtechchain.chaincode.service.encryption.EncryptionServiceFactory;
 import nl.medtechchain.chaincode.service.query.FilterService;
 import nl.medtechchain.chaincode.service.query.QueryService;
 import nl.medtechchain.proto.config.PlatformConfig;
@@ -155,7 +156,8 @@ public final class DeviceDataContract implements ContractInterface {
 
         var iterator = ctx.getStub().getStateByPartialCompositeKey(TXType.DEVICE_DATA_ASSET.partialKey());
 
-        var filterService = PlatformEncryptionInterface.Factory.getInstance(platformConfig).map(FilterService::new).orElse(new FilterService());
+        var encryptionService = EncryptionServiceFactory.create(platformConfig);
+        var filterService = new FilterService(encryptionService);
 
         for (KeyValue kv : iterator) {
             try {
@@ -163,11 +165,12 @@ public final class DeviceDataContract implements ContractInterface {
 
                 if (asset.getTimestamp().getSeconds() < tx.getStartTime().getSeconds() || asset.getTimestamp().getSeconds() > tx.getEndTime().getSeconds())
                     continue;
+                // previously data with old config id was filtered out, but now we want to include it however there might be corner cases
+                // where we truly wouldn't want to include it, so we need to be careful with this
+                // boolean valid = asset.getConfigId().equals(platformConfig.getId()) &&
+                //         tx.getFiltersList().stream().allMatch(filter -> filterService.checkFilter(asset, filter));
 
-                boolean valid = asset.getConfigId().equals(platformConfig.getId()) &&
-                        tx.getFiltersList().stream().allMatch(filter -> filterService.checkFilter(asset, filter));
-
-                if (valid)
+                // if (valid)
                     filteredDeviceData.add(asset);
 
             } catch (InvalidProtocolBufferException e) {
