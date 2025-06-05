@@ -109,6 +109,7 @@ public class ConfigDefaults {
             
             // Uncomment to disable encryption
             //list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
+            // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
 
             return list;
         }

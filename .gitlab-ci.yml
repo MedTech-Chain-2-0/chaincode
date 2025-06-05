@@ -1,0 +1,49 @@
+# GitLab CI pipeline for chaincode
+# This pipeline builds, tests, and checks code quality for the chaincode project.
+# Deployment is handled externally via scripts in the tools repo.
+
+
+stages:
+  - build
+  - test
+
+
+
+default:
+  image: eclipse-temurin:21-jdk
+  cache:
+    paths:
+      - .gradle/wrapper
+      - .gradle/caches
+
+      
+build:
+  stage: build
+  script:
+    - chmod +x ./gradlew
+    - ./gradlew build --no-daemon -x checkstyleMain -x checkstyleTest -x test
+  artifacts:
+    paths:
+      - build/libs/*.jar
+    expire_in: 1 hour
+
+test:
+  stage: test
+  needs:
+    - build
+  script:
+    - chmod +x ./gradlew
+    - ./gradlew checkstyleMain checkstyleTest
+    - ./gradlew test
+    - ./gradlew jacocoTestCoverageVerification
+    - ./gradlew jacocoTestReport
+  artifacts:
+    paths:
+      - build/reports/jacoco/
+    reports:
+      junit: build/test-results/test/**/TEST-*.xml
+    when: always
+
+
+# Deployment is not included here as it is handled by scripts in the tools repo.
+# To deploy, see the /tools/fabric/cc-deploy.sh or cc-deploy-external.sh scripts.
