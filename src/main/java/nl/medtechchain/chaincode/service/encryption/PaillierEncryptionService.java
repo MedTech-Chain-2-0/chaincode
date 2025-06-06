@@ -13,6 +13,7 @@ import java.util.logging.Logger;
 public class PaillierEncryptionService implements EncryptionService {
     
     private static final Logger logger = Logger.getLogger(PaillierEncryptionService.class.getName());
+
     
     private final PaillierTTPAPI api;
     
@@ -74,14 +75,26 @@ public class PaillierEncryptionService implements EncryptionService {
             throw new IllegalArgumentException("Ciphertext list cannot be null or empty");
         }
         
-        // In Paillier, homomorphic addition is done via multiplication of ciphertexts
-        BigInteger result = new BigInteger(ciphertexts.get(0));
-        
-        for (int i = 1; i < ciphertexts.size(); i++) {
-            result = result.multiply(new BigInteger(ciphertexts.get(i)));
+        try {
+            // Get the public key for the specific version
+            var publicKey = api.getKeyByVersion(version).getEncryptionKey();
+            BigInteger n = new BigInteger(publicKey);
+            BigInteger nSquared = n.multiply(n);
+            
+            // In Paillier, homomorphic addition is done via multiplication of ciphertexts
+            BigInteger result = new BigInteger(ciphertexts.get(0));
+            
+            // Keep track of intermediate results to avoid overflow
+            for (int i = 1; i < ciphertexts.size(); i++) {
+                // Multiply and take modulo after each step to keep numbers manageable
+                result = result.multiply(new BigInteger(ciphertexts.get(i))).mod(nSquared);
+            }
+            
+            return result.toString();
+        } catch (Exception e) {
+            logger.severe("Failed to perform homomorphic addition: " + e.getMessage());
+            throw new RuntimeException("Failed to perform homomorphic addition", e);
         }
-        
-        return result.toString();
     }
     
     @Override
@@ -99,7 +112,18 @@ public class PaillierEncryptionService implements EncryptionService {
             // Let TTP handle key lookup by version - we don't manage keys locally
             PaillierDecryptRequest request = new PaillierDecryptRequest(null, ciphertext, version);
             String plaintext = api.decrypt(request).getPlaintext();
-            return new BigInteger(plaintext);
+            
+            // Handle large numbers that might exceed Long.MAX_VALUE
+            BigInteger decrypted = new BigInteger(plaintext);
+            
+            // If the number is larger than n/2, it might be a negative number
+            // in Paillier's message space. Adjust it accordingly.
+            BigInteger publicKey = new BigInteger(api.getKeyByVersion(version).getEncryptionKey());
+            if (decrypted.compareTo(publicKey.divide(BigInteger.TWO)) > 0) {
+                decrypted = decrypted.subtract(publicKey);
+            }
+            
+            return decrypted;
         } catch (Exception e) {
             logger.severe("TTP decryption failed for version " + version + ": " + e.getMessage());
             throw new RuntimeException("TTP decryption failed", e);

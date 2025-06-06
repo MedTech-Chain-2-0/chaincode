@@ -96,19 +96,19 @@ public class ConfigDefaults {
             // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "bfv"));
             
             // Uncomment to use Paillier instead
-            var api = PaillierTTPAPI.getInstance(EncryptionDefaults.TTP_ADDRESS);
-            try {
-                var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
-                list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
-                list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION, key.getVersion())); // CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION = 15
-            } catch (IOException | InterruptedException e) {
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
-                logger.warning("Could not get encryption key, defaulting to none");
-            }
+            // var api = PaillierTTPAPI.getInstance(EncryptionDefaults.TTP_ADDRESS);
+            // try {
+            //     var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
+            //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
+            //     list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
+            //     list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION, key.getVersion())); // CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION = 15
+            // } catch (IOException | InterruptedException e) {
+            //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
+            //     logger.warning("Could not get encryption key, defaulting to none");
+            // }
             
             // Uncomment to disable encryption
-            //list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
+            list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
             // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
 
             return list;
