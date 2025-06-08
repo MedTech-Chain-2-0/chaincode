@@ -4,13 +4,10 @@ import com.google.privacy.differentialprivacy.LaplaceNoise;
 import com.google.protobuf.Descriptors;
 import nl.medtechchain.chaincode.config.ConfigOps;
 import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
-import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
-import nl.medtechchain.chaincode.service.query.average.Average;
-import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCount;
-import nl.medtechchain.chaincode.service.query.histogram.Histogram;
-import nl.medtechchain.chaincode.service.query.std.Std;
-import nl.medtechchain.chaincode.service.query.sum.Sum;
-import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCount;
+import nl.medtechchain.chaincode.service.query.count.CountQuery;
+import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
+import nl.medtechchain.chaincode.service.query.sum.SumQuery;
+import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCountQuery;
 import nl.medtechchain.proto.common.ChaincodeError;
 import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceCategory;
@@ -20,13 +17,8 @@ import nl.medtechchain.proto.devicedata.MedicalSpeciality;
 import nl.medtechchain.proto.query.Filter;
 import nl.medtechchain.proto.query.Query;
 import nl.medtechchain.proto.query.QueryResult;
-import nl.medtechchain.proto.query.QueryResult.MeanAndStd;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Logger;
 
@@ -34,17 +26,17 @@ import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.get;
 import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.getUnsafe;
 import static nl.medtechchain.proto.config.PlatformConfig.Config.*;
 
+// Main query service - validates and executes queries with optional differential privacy
 public class QueryService {
-
+    
     private static final Logger logger = Logger.getLogger(QueryService.class.getName());
-
-    private final PlatformEncryptionInterface encryptionInterface;
+    
     private final PlatformConfig platformConfig;
     private final MechanismType mechanismType;
-
+    
     public QueryService(PlatformConfig platformConfig) {
-        this.encryptionInterface = PlatformEncryptionInterface.Factory.getInstance(platformConfig).orElse(null);
         this.platformConfig = platformConfig;
+        
         String differentialPrivacyProp = get(platformConfig, CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY).orElse("NONE");
         MechanismType type;
         try {
@@ -55,14 +47,7 @@ public class QueryService {
         }
         this.mechanismType = type;
     }
-
-    // deterministic queryService for testing purposes
-    public QueryService(PlatformConfig platformConfig, PlatformEncryptionInterface encryptionInterface) {
-        this.encryptionInterface = encryptionInterface;
-        this.platformConfig = platformConfig;
-        this.mechanismType = MechanismType.NONE;
-    }
-
+        
     public Optional<ChaincodeError> validateQuery(Query query) {
         String validFields = "";
         switch (query.getQueryType()) {
@@ -83,9 +68,7 @@ public class QueryService {
                 break;
             case HISTOGRAM:
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_HISTOGRAM_FIELDS).orElse("");
-
-                // extra check for the bin size
-                if(query.getBinSize() <= 0) return Optional.of(invalidQueryError("Bin size hast to be bigger than 0"));
+                if(query.getBinSize() <= 0) return Optional.of(invalidQueryError("Bin size has to be bigger than 0"));
                 break;
             case STD:
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_STD_FIELDS).orElse("");
@@ -97,7 +80,6 @@ public class QueryService {
 
         if (deviceDataDescriptorByName(query.getTargetField()).isEmpty() && !query.getTargetField().equals("udi"))
             return Optional.of(invalidQueryError("Unknown target field: " + query.getTargetField()));
-
 
         for (Filter filter : query.getFiltersList()) {
             var fieldType = DeviceDataFieldTypeMapper.fromFieldName(filter.getField());
@@ -149,170 +131,83 @@ public class QueryService {
 
         return Optional.empty();
     }
+    
+    
+    public QueryResult sum(Query query, List<DeviceDataAsset> assets) {
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
 
-    public QueryResult count(Query query, List<DeviceDataAsset> assets) {
-        int result;
-        if (query.getTargetField().equals("udi"))
-            result = assets.size();
-        else
-            result = groupedCountRaw(query, assets).size();
+        if (fieldType != DeviceDataFieldType.INTEGER)
+            throw new IllegalStateException("cannot run SUM over " + fieldType);
+
+        QueryResult result = new SumQuery(platformConfig).process(query, assets);
 
         if (mechanismType == MechanismType.LAPLACE) {
-            result = Math.abs((int) new LaplaceNoise().addNoise(result, 1, getEpsilon(), 0.));
-        }
-
-        return QueryResult.newBuilder().setCountResult(result).build();
-    }
-
-    public QueryResult groupedCount(Query query, List<DeviceDataAsset> assets) {
-        var result = groupedCountRaw(query, assets);
-
-        switch (mechanismType) {
-            case LAPLACE:
-                var noise = new LaplaceNoise();
-                result.replaceAll((key, value) -> Math.abs(noise.addNoise(value, 1, getEpsilon(), null)));
-        }
-
-        return QueryResult.newBuilder().setGroupedCountResult(QueryResult.GroupedCount.newBuilder().putAllMap(result).build()).build();
-    }
-
-    public QueryResult average(Query query, List<DeviceDataAsset> assets) {
-        var descriptor = deviceDataDescriptorByName(query.getTargetField());
-        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
-        assert descriptor.isPresent();
-
-        Average avg = Average.Factory.getInstance(fieldType);
-
-        switch (fieldType) {
-            case INTEGER:
-            case TIMESTAMP:
-                break;
-            default:
-                throw new IllegalStateException("Cannot average field type: " + fieldType);
-        }
-
-        var result = avg.average(encryptionInterface, descriptor.get(), assets);
-        var sum = result.get_1();
-        var count = result.get_2();
-
-        // implementing differential privacy properly requires additional consideration
-        // since sensitivity depends on the queried data
-        switch (mechanismType) {
-            case LAPLACE:
-                var noise = new LaplaceNoise();
-                sum = noise.addNoise(sum, 1, getEpsilon(), 0);
-        }
-
-        return QueryResult.newBuilder().setAverageResult(new BigDecimal(sum).divide(new BigDecimal(count), RoundingMode.HALF_EVEN).doubleValue()).build();
-    }
-
-    private Map<String, Long> groupedCountRaw(Query query, List<DeviceDataAsset> assets) {
-        var descriptor = deviceDataDescriptorByName(query.getTargetField());
-        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
-        assert descriptor.isPresent();
-
-        var result = new HashMap<String, Long>();
-        var map = GroupedCount.Factory.getInstance(fieldType).groupedCount(encryptionInterface, descriptor.get(), assets);
-        for (Map.Entry<String, Long> s : map.entrySet()) {
-            if (s.getValue() != 0)
-                result.put(s.getKey(), s.getValue());
+            var noise = new LaplaceNoise();
+            long noisySum = noise.addNoise(result.getSumResult(), 1, getEpsilon(), 0);
+            result = QueryResult.newBuilder().setSumResult(noisySum).build();
         }
 
         return result;
     }
-
-    public QueryResult sum(Query query, List<DeviceDataAsset> assets) {
-        var descriptor = deviceDataDescriptorByName(query.getTargetField())
-                         .orElseThrow(() ->
-                             new IllegalStateException("unknown target field " + query.getTargetField()));
-
-        var fieldType  = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
-
-        // check just in case if we have the compatible field
-        if (fieldType != DeviceDataFieldType.INTEGER)
-            throw new IllegalStateException("cannot run SUM over " + fieldType);
     
-        // calls on the Sum class to perform the calculations
-        long sum = Sum.Factory.getInstance(fieldType)
-                              .sum(encryptionInterface, descriptor, assets);
+    // TODO: Implement these using the new architecture
     
-        // same as other queries, adds some noise to the result.
-        switch (mechanismType) {
-            case LAPLACE:
-                var noise = new LaplaceNoise();
-                sum = noise.addNoise(sum, 1, getEpsilon(), 0);
-        }
-
-        // proto generated thingy, creates getters setters and everything
-        return QueryResult.newBuilder().setSumResult(sum).build();
-    }
-
-    public QueryResult uniqueCount(Query query,List<DeviceDataAsset> assets) {
-        var descriptor = deviceDataDescriptorByName(query.getTargetField())
-                         .orElseThrow(() ->
-                             new IllegalStateException("unknown target field " + query.getTargetField()));
-
-        var fieldType =
-            DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
-    
-        long distinct =
-            UniqueCount.Factory.getInstance(fieldType)
-                               .uniqueCount(encryptionInterface,descriptor,assets);
-    
-        // differential privacy, same as other queries
-        switch (mechanismType) {
-            case LAPLACE:
-                var noise = new LaplaceNoise();
-                distinct = noise.addNoise(distinct, 1, getEpsilon(), 0);
+    public QueryResult count(Query query, List<DeviceDataAsset> assets) {
+        QueryResult result = new CountQuery(platformConfig).process(query, assets);
+        
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            int noisyCount = Math.abs((int) noise.addNoise(result.getCountResult(), 1, getEpsilon(), 0));
+            result = QueryResult.newBuilder().setCountResult(noisyCount).build();
         }
         
-        return QueryResult.newBuilder().setCountResult(distinct).build();
+        return result;
     }
-
+    
+    public QueryResult groupedCount(Query query, List<DeviceDataAsset> assets) {
+        QueryResult result = new GroupedCountQuery(platformConfig).process(query, assets);
+        
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            // Apply noise to each group count
+            QueryResult.GroupedCount.Builder noisyBuilder = QueryResult.GroupedCount.newBuilder();
+            result.getGroupedCountResult().getMapMap().forEach((key, value) -> 
+                noisyBuilder.putMap(key, Math.abs(noise.addNoise(value, 1, getEpsilon(), null)))
+            );
+            result = QueryResult.newBuilder().setGroupedCountResult(noisyBuilder.build()).build();
+        }
+        
+        return result;
+    }
+    
+    public QueryResult average(Query query, List<DeviceDataAsset> assets) {
+        throw new UnsupportedOperationException("Average query not yet implemented with new architecture");
+    }
+    
+    public QueryResult uniqueCount(Query query, List<DeviceDataAsset> assets) {
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+        
+        QueryResult result = new UniqueCountQuery(platformConfig).process(query, assets);
+        
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            int noisyCount = Math.abs((int) noise.addNoise(result.getCountResult(), 1, getEpsilon(), 0));
+            result = QueryResult.newBuilder().setCountResult(noisyCount).build();
+        }
+        
+        return result;
+    }
+    
     public QueryResult histogram(Query query, List<DeviceDataAsset> assets) {
-        var descriptor = deviceDataDescriptorByName(query.getTargetField())
-                         .orElseThrow(() ->
-                             new IllegalStateException("unknown target field " + query.getTargetField()));
-
-        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
-
-        var result = Histogram.Factory.getInstance(fieldType).histogram(encryptionInterface, descriptor, assets, query.getBinSize());
-
-        switch (mechanismType) {
-            case LAPLACE:
-                var noise = new LaplaceNoise();
-                for(Map.Entry<String, Long> entry : result.entrySet()){
-                    entry.setValue(noise.addNoise(entry.getValue(), 1, getEpsilon(), 0));
-                }
-        }
-
-        return QueryResult.newBuilder().setGroupedCountResult(QueryResult.GroupedCount.newBuilder().putAllMap(result).build()).build();
-
+        throw new UnsupportedOperationException("Histogram query not yet implemented with new architecture");
     }
-
+    
     public QueryResult std(Query query, List<DeviceDataAsset> assets) {
-        var descriptor = deviceDataDescriptorByName(query.getTargetField())
-                         .orElseThrow(() ->
-                             new IllegalStateException("unknown target field " + query.getTargetField()));
-
-        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
-
-        Std.MeanAndStd ms = Std.Factory.getInstance(fieldType).std(encryptionInterface, descriptor, assets);
-        double mean = ms.mean();
-        double std = ms.std();
-
-        switch (mechanismType) {
-            case LAPLACE:
-                var noise = new LaplaceNoise();
-                mean = noise.addNoise(mean, 1, getEpsilon(), 0);
-                std = noise.addNoise(std, 1, getEpsilon(), 0);
-        }
-
-        QueryResult.MeanAndStd meanAndStd = QueryResult.MeanAndStd.newBuilder().setMean(mean).setStd(std).build();
-        return QueryResult.newBuilder().setMeanStd(meanAndStd).build();
-
+        throw new UnsupportedOperationException("Std query not yet implemented with new architecture");
     }
-
+    
+    // helpers
+    
     private double getEpsilon() {
         return Double.parseDouble(getUnsafe(platformConfig, CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY_LAPLACE_EPSILON));
     }
@@ -324,4 +219,4 @@ public class QueryService {
     private Optional<Descriptors.FieldDescriptor> deviceDataDescriptorByName(String name) {
         return Optional.ofNullable(DeviceDataAsset.DeviceData.getDescriptor().findFieldByName(name));
     }
-}
+} 

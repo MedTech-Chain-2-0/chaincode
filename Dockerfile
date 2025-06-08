@@ -4,8 +4,7 @@ COPY --chown=gradle:gradle . /home/gradle/src
 
 WORKDIR /home/gradle/src
 
-RUN gradle --no-daemon shadowJar -x checkstyleMain -x checkstyleTest
-
+RUN gradle --no-daemon shadowJar -x checkstyleMain -x checkstyleTest --parallel
 
 FROM eclipse-temurin:11-jdk-jammy
 

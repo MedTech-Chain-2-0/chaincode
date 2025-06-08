@@ -1,7 +1,7 @@
 package nl.medtechchain.chaincode.service.query;
 
 import com.google.protobuf.Timestamp;
-import nl.medtechchain.chaincode.service.encryption.PlatformEncryptionInterface;
+import nl.medtechchain.chaincode.service.encryption.EncryptionService;
 import nl.medtechchain.proto.devicedata.DeviceCategory;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
 import nl.medtechchain.proto.devicedata.MedicalSpeciality;
@@ -10,19 +10,19 @@ import nl.medtechchain.proto.query.Filter;
 import java.util.Optional;
 import java.util.logging.Logger;
 
-
+// Handles filtering device data - works with both encrypted and plain fields
 public class FilterService {
 
     private static final Logger logger = Logger.getLogger(FilterService.class.getName());
 
-    private final PlatformEncryptionInterface encryptionInterface;
+    private final EncryptionService encryptionService;
 
     public FilterService() {
-        this.encryptionInterface = null;
+        this.encryptionService = null;
     }
 
-    public FilterService(PlatformEncryptionInterface encryptionInterface) {
-        this.encryptionInterface = encryptionInterface;
+    public FilterService(EncryptionService encryptionService) {
+        this.encryptionService = encryptionService;
     }
 
     public boolean checkFilter(DeviceDataAsset asset, Filter filter) {
@@ -68,10 +68,11 @@ public class FilterService {
                 value = field.getPlain();
                 break;
             case ENCRYPTED:
-                if (encryptionInterface == null)
+                if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
 
-                value = encryptionInterface.decryptString(field.getEncrypted());
+                // TODO: Extract version from encrypted field or use version-aware filtering
+                value = encryptionService.decryptString(field.getEncrypted(), encryptionService.getCurrentVersion());
                 break;
             default:
                 return false;
@@ -98,10 +99,11 @@ public class FilterService {
                 value = field.getPlain();
                 break;
             case ENCRYPTED:
-                if (encryptionInterface == null)
+                if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
 
-                value = encryptionInterface.decryptLong(field.getEncrypted());
+                // TODO: Extract version from encrypted field or use version-aware filtering
+                value = encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion());
                 break;
             default:
                 return false;
@@ -130,10 +132,11 @@ public class FilterService {
                 value = field.getPlain();
                 break;
             case ENCRYPTED:
-                if (encryptionInterface == null)
+                if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
 
-                value = Timestamp.newBuilder().setSeconds(encryptionInterface.decryptLong(field.getEncrypted())).build();
+                // TODO: Extract version from encrypted field or use version-aware filtering
+                value = Timestamp.newBuilder().setSeconds(encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion())).build();
                 break;
             default:
                 return false;
@@ -158,10 +161,11 @@ public class FilterService {
                 value = field.getPlain();
                 break;
             case ENCRYPTED:
-                if (encryptionInterface == null)
+                if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
 
-                value = encryptionInterface.decryptBool(field.getEncrypted());
+                // TODO: Extract version from encrypted field or use version-aware filtering
+                value = encryptionService.decryptBool(field.getEncrypted(), encryptionService.getCurrentVersion());
                 break;
             default:
                 return false;
@@ -181,9 +185,10 @@ public class FilterService {
                 value = field.getPlain();
                 break;
             case ENCRYPTED:
-                if (encryptionInterface == null)
+                if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-                value = MedicalSpeciality.forNumber((int) encryptionInterface.decryptLong(field.getEncrypted()));
+                // TODO: Extract version from encrypted field or use version-aware filtering
+                value = MedicalSpeciality.forNumber((int) encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion()));
                 break;
             default:
                 return false;
@@ -199,9 +204,10 @@ public class FilterService {
                 value = field.getPlain();
                 break;
             case ENCRYPTED:
-                if (encryptionInterface == null)
+                if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-                value = DeviceCategory.forNumber((int) encryptionInterface.decryptLong(field.getEncrypted()));
+                // TODO: Extract version from encrypted field or use version-aware filtering
+                value = DeviceCategory.forNumber((int) encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion()));
                 break;
             default:
                 return false;
@@ -209,5 +215,4 @@ public class FilterService {
 
         return value == DeviceCategory.valueOf(filter.getValue());
     }
-
-}
+} 

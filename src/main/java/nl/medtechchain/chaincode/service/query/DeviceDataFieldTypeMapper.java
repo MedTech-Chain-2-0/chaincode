@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import static nl.medtechchain.proto.devicedata.DeviceDataFieldType.*;
 
+// Maps field names to types for protobuf fields
 public class DeviceDataFieldTypeMapper {
 
     public static DeviceDataFieldType fromFieldName(String name) {
@@ -28,9 +29,8 @@ public class DeviceDataFieldTypeMapper {
                 return MEDICAL_SPECIALITY;
             case "devicedata.DeviceDataAsset.DeviceCategoryField":
                 return DEVICE_CATEGORY;
-
         }
 
         return DEVICE_DATA_FIELD_TYPE_UNSPECIFIED;
     }
-}
+} 

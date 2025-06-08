@@ -1,7 +1,7 @@
 package nl.medtechchain.chaincode.config;
 
 import com.google.protobuf.Timestamp;
-import nl.medtechchain.chaincode.service.encryption.paillier.PaillierTTPAPI;
+import nl.medtechchain.chaincode.service.encryption.PaillierTTPAPI;
 import nl.medtechchain.proto.config.NetworkConfig;
 import nl.medtechchain.proto.config.PlatformConfig;
 
@@ -59,8 +59,8 @@ public class ConfigDefaults {
              and change the below address to the output of the following command: "ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'". 
              Port should stay the same 
              */
-            public static final String TTP_ADDRESS = "ttp.medtechchain.nl:6000"; //"192.168.45.84:6000"; 
-           
+            public static final String TTP_ADDRESS = "ttp.medtechchain.nl:6000"; // "ttp.medtechchain.nl:6000" "192.168.45.84:6000"; 
+
             public static final int BIT_LENGTH = 2048;
         }
 
@@ -101,12 +101,14 @@ public class ConfigDefaults {
             //     var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
             //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
             //     list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
+            //     list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION, key.getVersion())); // CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION = 15
             // } catch (IOException | InterruptedException e) {
             //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
             //     logger.warning("Could not get encryption key, defaulting to none");
             // }
             
             // Uncomment to disable encryption
+            list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
             // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
 
             return list;
