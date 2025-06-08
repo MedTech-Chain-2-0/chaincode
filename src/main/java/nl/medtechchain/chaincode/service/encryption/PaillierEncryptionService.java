@@ -115,13 +115,7 @@ public class PaillierEncryptionService implements EncryptionService {
             
             // Handle large numbers that might exceed Long.MAX_VALUE
             BigInteger decrypted = new BigInteger(plaintext);
-            
-            // If the number is larger than n/2, it might be a negative number
-            // in Paillier's message space. Adjust it accordingly.
-            BigInteger publicKey = new BigInteger(api.getKeyByVersion(version).getEncryptionKey());
-            if (decrypted.compareTo(publicKey.divide(BigInteger.TWO)) > 0) {
-                decrypted = decrypted.subtract(publicKey);
-            }
+            logger.severe("Decrypted str: " + decrypted.toString());
             
             return decrypted;
         } catch (Exception e) {
