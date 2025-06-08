@@ -7,6 +7,7 @@ import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
 import nl.medtechchain.chaincode.service.query.count.CountQuery;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
 import nl.medtechchain.chaincode.service.query.sum.SumQuery;
+import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCountQuery;
 import nl.medtechchain.proto.common.ChaincodeError;
 import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceCategory;
@@ -184,7 +185,17 @@ public class QueryService {
     }
     
     public QueryResult uniqueCount(Query query, List<DeviceDataAsset> assets) {
-        throw new UnsupportedOperationException("UniqueCount query not yet implemented with new architecture");
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+        
+        QueryResult result = new UniqueCountQuery(platformConfig).process(query, assets);
+        
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            int noisyCount = Math.abs((int) noise.addNoise(result.getCountResult(), 1, getEpsilon(), 0));
+            result = QueryResult.newBuilder().setCountResult(noisyCount).build();
+        }
+        
+        return result;
     }
     
     public QueryResult histogram(Query query, List<DeviceDataAsset> assets) {
