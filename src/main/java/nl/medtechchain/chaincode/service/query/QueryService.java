@@ -194,7 +194,7 @@ public class QueryService {
             result = QueryResult.newBuilder().setAverageResult(noisyAverage).build();
         }
 
-        return result;
+        return result; 
     }
     
     public QueryResult uniqueCount(Query query, List<DeviceDataAsset> assets) {
