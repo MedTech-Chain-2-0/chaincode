@@ -181,7 +181,20 @@ public class QueryService {
     }
     
     public QueryResult average(Query query, List<DeviceDataAsset> assets) {
-        throw new UnsupportedOperationException("Average query not yet implemented with new architecture");
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        if (fieldType != DeviceDataFieldType.INTEGER)
+            throw new IllegalStateException("cannot run AVERAGE over " + fieldType);
+
+        QueryResult result = new AverageQuery(platformConfig).process(query, assets);
+
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            double noisyAverage = noise.addNoise(result.getAverageResult(), 1, getEpsilon(), 0);
+            result = QueryResult.newBuilder().setAverageResult(noisyAverage).build();
+        }
+
+        return result;
     }
     
     public QueryResult uniqueCount(Query query, List<DeviceDataAsset> assets) {
