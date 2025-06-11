@@ -35,6 +35,9 @@ public class STDQuery extends QueryProcessor {
     // a helper method to calculate mean homomorphically
     private double calculatePopulationMean(Query query, List<DeviceDataAsset> assets, 
     Descriptors.FieldDescriptor fieldDescriptor) {
+        if (assets.size() == 0)
+            return 0;
+
         Map<String, List<DeviceDataAsset>> versionGroups = groupByVersion(assets);
 
         long sum = 0;
@@ -57,6 +60,8 @@ public class STDQuery extends QueryProcessor {
     // a helper method to calculate std homomorphically
     private double calculateSTD(Query query, List<DeviceDataAsset> assets, 
     Descriptors.FieldDescriptor fieldDescriptor, double mean) {
+        if (assets.size() == 0)
+            return 0;
         Map<String, List<DeviceDataAsset>> versionGroups = groupByVersion(assets);
 
         double std = 0;
@@ -80,6 +85,8 @@ public class STDQuery extends QueryProcessor {
     private long processSumVersionGroup(List<DeviceDataAsset> assets, 
                                     Descriptors.FieldDescriptor fieldDescriptor, 
                                     String version) {
+        if (assets.size() == 0)
+            return 0;
         long plainSum = 0;
         List<String> encryptedValues = new ArrayList<>();
         
@@ -135,6 +142,8 @@ public class STDQuery extends QueryProcessor {
     private double processSTDVersionGroup(List<DeviceDataAsset> assets, 
                                     Descriptors.FieldDescriptor fieldDescriptor, 
                                     String version, double mean) {
+        if (assets.size() == 0)
+            return 0;
         double plainStd = 0;
         List<String> encryptedValues = new ArrayList<>();
 
