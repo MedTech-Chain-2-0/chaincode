@@ -20,10 +20,12 @@
 
 ## Deployment
 
+Before deploying, use the `scripts/copy-protos.sh` script to copy the proto jar.
+
 ### Classic
 
 Currently, the only implemented chaincode deployment is by following the default lifecycle (package, install on peers, ...).
-The deployment is performed by automation scripts from the `tools` repository,
+The deployment is performed by automation scripts from the `tools` repository.
 
 ### Chaincode as a Service (current)
 
