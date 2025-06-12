@@ -1,5 +1,8 @@
 package nl.medtechchain.chaincode.service.encryption;
 
+import nl.medtechchain.chaincode.service.encryption.bfv.BfvCliClient;
+import nl.medtechchain.chaincode.service.encryption.bfv.BfvCliProperties;
+import nl.medtechchain.chaincode.service.encryption.bfv.BfvEncryptionService;
 import nl.medtechchain.proto.config.PlatformConfig;
 
 import java.util.Optional;
@@ -31,8 +34,9 @@ public class EncryptionServiceFactory {
             case "bfv":
                 // BFV uses the same TTP address config key as Paillier currently
                 String bfvTtpAddress = getUnsafe(config, CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_TTP_ADRRESS);
+                BfvCliClient cli = new BfvCliClient(new BfvCliProperties());
                 logger.info("Creating BFV encryption service with TTP: " + bfvTtpAddress);
-                return new BfvEncryptionService(bfvTtpAddress);
+                return new BfvEncryptionService(bfvTtpAddress, cli);
                 
             case "plaintext":
             case "none":

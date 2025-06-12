@@ -1,4 +1,4 @@
-package nl.medtechchain.chaincode.service.encryption;
+package nl.medtechchain.chaincode.service.encryption.bfv;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import nl.medtechchain.chaincode.service.encryption.dto.*;

@@ -1,4 +1,6 @@
-package nl.medtechchain.chaincode.service.encryption;
+package nl.medtechchain.chaincode.service.encryption.bfv;
+
+import nl.medtechchain.chaincode.service.encryption.EncryptionService;
 
 import java.util.List;
 import java.util.Set;
@@ -11,9 +13,11 @@ public class BfvEncryptionService implements EncryptionService {
     private static final String BFV_VERSION = "bfv-default";
     
     private final BfvTTPAPI api;
+    private final BfvCliClient cli;
     
-    public BfvEncryptionService(String ttpAddress) {
+    public BfvEncryptionService(String ttpAddress, BfvCliClient cli) {
         this.api = BfvTTPAPI.getInstance(ttpAddress);
+        this.cli = cli;
     }
     
     @Override
@@ -79,7 +83,7 @@ public class BfvEncryptionService implements EncryptionService {
         }
         
         try {
-            return api.addAll(ciphertexts);
+            return cli.addMany(ciphertexts);
         } catch (Exception e) {
             logger.severe("BFV homomorphic addition failed: " + e.getMessage());
             throw new RuntimeException("BFV homomorphic addition failed", e);
