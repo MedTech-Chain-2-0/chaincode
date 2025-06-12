@@ -59,7 +59,7 @@ public class ConfigDefaults {
              and change the below address to the output of the following command: "ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'". 
              Port should stay the same 
              */
-            public static final String TTP_ADDRESS = "192.168.45.84:6000"; // "ttp.medtechchain.nl:6000" "192.168.45.84:6000"; 
+            public static final String TTP_ADDRESS = "ttp.medtechchain.nl:6000"; // "ttp.medtechchain.nl:6000" "192.168.45.84:6000"; 
 
             public static final int BIT_LENGTH = 2048;
         }
