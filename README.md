@@ -25,14 +25,38 @@
 Currently, the only implemented chaincode deployment is by following the default lifecycle (package, install on peers, ...).
 The deployment is performed by automation scripts from the `tools` repository,
 
-### Chaincode as a Service (CaaS) *(In progress)*
+### Chaincode as a Service (current)
 
-All Docker-related files are used to run the chaincode as an external service, 
-but the current development infrastructure is not currently configured to use external chaincode.
-This makes development process cumbersome. CaaS might make the development process easier.
+1. **Prepare the FHE sources** (only when FHE code changes)
+   ```bash
+   chaincode/scripts/copy-fhe.sh
+   ```
+   This drops a tiny `fhe-src/` folder into the repo; the Dockerfile
+   compiles the `bfv_calc` binary from it.
 
-The `docker-compose.yaml` specifications (e.g., networks, environment variables) are made to match the infrastructure (e.g., the chaincode should be in the same Docker network as the peers).
+2. **Deploy the chaincode definition to Fabric**
+   ```bash
+   tools/fabric/cc-deploy-external.sh <cc_version> <cc_seq>
+   ```
+   Copy the printed **CHAINCODE_ID**.
 
-openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -subj "/C=NL/ST=Zuid-Holland/L=Delft/O=MedTechChain/CN=chaincode.peer0.medtechchain.nl" -addext "subjectAltName=DNS:chaincode.peer0.medtechchain.nl"
+3. **Paste that ID in `docker-compose.yaml`** (three places, env `CHAINCODE_ID`).
+
+4. **Build and start the service containers**
+   ```bash
+   docker-compose up --build
+   ```
+---
+### Chaincode as a Service (old)
+
+```text
+All Docker-related files are used to run the chaincode as an external service,
+but the previous infra wasn't wired for it.  Notes kept for reference:
+
+The compose networks/vars must match the peer network.
+
+openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem \
+  -subj "/C=NL/ST=Zuid-Holland/L=Delft/O=MedTechChain/CN=chaincode.peer0.medtechchain.nl" \
+  -addext "subjectAltName=DNS:chaincode.peer0.medtechchain.nl"
 
 awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' key.pem
