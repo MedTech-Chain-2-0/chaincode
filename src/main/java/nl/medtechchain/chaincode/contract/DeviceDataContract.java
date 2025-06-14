@@ -29,6 +29,7 @@ import static nl.medtechchain.chaincode.util.Base64EncodingOps.decode64;
 import static nl.medtechchain.chaincode.util.Base64EncodingOps.encode64;
 import static nl.medtechchain.chaincode.util.ChaincodeResponseUtil.*;
 import static nl.medtechchain.chaincode.util.MeasureExecTimeUtil.monitorTime;
+import static nl.medtechchain.proto.query.Query.QueryType.*;
 
 @Contract(name = "devicedata", info = @Info(title = "Device Data Contract", license = @License(name = "Apache 2.0 License", url = "http://www.apache.org/licenses/LICENSE-2.0.html")))
 public final class DeviceDataContract implements ContractInterface {

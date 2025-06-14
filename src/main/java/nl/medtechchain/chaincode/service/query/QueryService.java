@@ -27,6 +27,7 @@ import java.util.logging.Logger;
 import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.get;
 import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.getUnsafe;
 import static nl.medtechchain.proto.config.PlatformConfig.Config.*;
+import static nl.medtechchain.proto.query.Query.QueryType.*;
 
 // Main query service - validates and executes queries with optional differential privacy
 public class QueryService {
