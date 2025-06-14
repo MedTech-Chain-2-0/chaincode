@@ -32,26 +32,28 @@ public class FilterService {
                 throw new IllegalStateException("Field " + filter.getField() + " is not present in asset " + asset);
 
             var value = asset.getDeviceData().getField(descriptor.get());
+            var keyVersion = asset.getKeyVersion();
+
 
             switch (DeviceDataFieldTypeMapper.fromFieldName(filter.getField())) {
                 case STRING:
                     assert filter.getComparatorCase() == Filter.ComparatorCase.STRING_FILTER;
-                    return check(filter.getField(), (DeviceDataAsset.StringField) value, filter.getStringFilter());
+                    return check(filter.getField(), (DeviceDataAsset.StringField) value, filter.getStringFilter(), keyVersion);
                 case INTEGER:
                     assert filter.getComparatorCase() == Filter.ComparatorCase.INTEGER_FILTER;
-                    return check(filter.getField(), (DeviceDataAsset.IntegerField) value, filter.getIntegerFilter());
+                    return check(filter.getField(), (DeviceDataAsset.IntegerField) value, filter.getIntegerFilter(), keyVersion);
                 case TIMESTAMP:
                     assert filter.getComparatorCase() == Filter.ComparatorCase.TIMESTAMP_FILTER;
-                    return check(filter.getField(), (DeviceDataAsset.TimestampField) value, filter.getTimestampFilter());
+                    return check(filter.getField(), (DeviceDataAsset.TimestampField) value, filter.getTimestampFilter(), keyVersion);
                 case BOOL:
                     assert filter.getComparatorCase() == Filter.ComparatorCase.BOOL_FILTER;
-                    return check(filter.getField(), (DeviceDataAsset.BoolField) value, filter.getBoolFilter());
+                    return check(filter.getField(), (DeviceDataAsset.BoolField) value, filter.getBoolFilter(), keyVersion);
                 case DEVICE_CATEGORY:
                     assert filter.getComparatorCase() == Filter.ComparatorCase.ENUM_FILTER;
-                    return check(filter.getField(), (DeviceDataAsset.DeviceCategoryField) value, filter.getEnumFilter());
+                    return check(filter.getField(), (DeviceDataAsset.DeviceCategoryField) value, filter.getEnumFilter(), keyVersion);
                 case MEDICAL_SPECIALITY:
                     assert filter.getComparatorCase() == Filter.ComparatorCase.ENUM_FILTER;
-                    return check(filter.getField(), (DeviceDataAsset.MedicalSpecialityField) value, filter.getEnumFilter());
+                    return check(filter.getField(), (DeviceDataAsset.MedicalSpecialityField) value, filter.getEnumFilter(), keyVersion);
             }
 
             return false;
@@ -61,7 +63,7 @@ public class FilterService {
         }
     }
 
-    private boolean check(String name, DeviceDataAsset.StringField field, Filter.StringFilter filter) {
+    private boolean check(String name, DeviceDataAsset.StringField field, Filter.StringFilter filter, String keyVersion) {
         String value;
         switch (field.getFieldCase()) {
             case PLAIN:
@@ -70,9 +72,8 @@ public class FilterService {
             case ENCRYPTED:
                 if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-
-                // TODO: Extract version from encrypted field or use version-aware filtering
-                value = encryptionService.decryptString(field.getEncrypted(), encryptionService.getCurrentVersion());
+                // uses the key version from the asset
+                value = encryptionService.decryptString(field.getEncrypted(), keyVersion);
                 break;
             default:
                 return false;
@@ -92,7 +93,7 @@ public class FilterService {
         return false;
     }
 
-    private boolean check(String name, DeviceDataAsset.IntegerField field, Filter.IntegerFilter filter) {
+    private boolean check(String name, DeviceDataAsset.IntegerField field, Filter.IntegerFilter filter, String keyVersion) {
         long value;
         switch (field.getFieldCase()) {
             case PLAIN:
@@ -101,9 +102,8 @@ public class FilterService {
             case ENCRYPTED:
                 if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-
-                // TODO: Extract version from encrypted field or use version-aware filtering
-                value = encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion());
+                // uses the key version from the asset
+                value = encryptionService.decryptLong(field.getEncrypted(), keyVersion);
                 break;
             default:
                 return false;
@@ -125,7 +125,7 @@ public class FilterService {
         return false;
     }
 
-    private boolean check(String name, DeviceDataAsset.TimestampField field, Filter.TimestampFilter filter) {
+    private boolean check(String name, DeviceDataAsset.TimestampField field, Filter.TimestampFilter filter, String keyVersion) {
         Timestamp value;
         switch (field.getFieldCase()) {
             case PLAIN:
@@ -134,9 +134,8 @@ public class FilterService {
             case ENCRYPTED:
                 if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-
-                // TODO: Extract version from encrypted field or use version-aware filtering
-                value = Timestamp.newBuilder().setSeconds(encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion())).build();
+                // uses the key version from the asset
+                value = Timestamp.newBuilder().setSeconds(encryptionService.decryptLong(field.getEncrypted(), keyVersion)).build();
                 break;
             default:
                 return false;
@@ -154,7 +153,7 @@ public class FilterService {
         return false;
     }
 
-    private boolean check(String name, DeviceDataAsset.BoolField field, Filter.BoolFilter filter) {
+    private boolean check(String name, DeviceDataAsset.BoolField field, Filter.BoolFilter filter, String keyVersion) {
         boolean value;
         switch (field.getFieldCase()) {
             case PLAIN:
@@ -163,9 +162,8 @@ public class FilterService {
             case ENCRYPTED:
                 if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-
-                // TODO: Extract version from encrypted field or use version-aware filtering
-                value = encryptionService.decryptBool(field.getEncrypted(), encryptionService.getCurrentVersion());
+                // uses the key version from the asset
+                value = encryptionService.decryptBool(field.getEncrypted(), keyVersion);
                 break;
             default:
                 return false;
@@ -178,7 +176,7 @@ public class FilterService {
         return false;
     }
 
-    private boolean check(String name, DeviceDataAsset.MedicalSpecialityField field, Filter.EnumFilter filter) {
+    private boolean check(String name, DeviceDataAsset.MedicalSpecialityField field, Filter.EnumFilter filter, String keyVersion) {
         MedicalSpeciality value;
         switch (field.getFieldCase()) {
             case PLAIN:
@@ -187,8 +185,8 @@ public class FilterService {
             case ENCRYPTED:
                 if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-                // TODO: Extract version from encrypted field or use version-aware filtering
-                value = MedicalSpeciality.forNumber((int) encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion()));
+                // uses the key version from the asset
+                value = MedicalSpeciality.forNumber((int) encryptionService.decryptLong(field.getEncrypted(), keyVersion));
                 break;
             default:
                 return false;
@@ -197,7 +195,7 @@ public class FilterService {
         return value == MedicalSpeciality.valueOf(filter.getValue());
     }
 
-    private boolean check(String name, DeviceDataAsset.DeviceCategoryField field, Filter.EnumFilter filter) {
+    private boolean check(String name, DeviceDataAsset.DeviceCategoryField field, Filter.EnumFilter filter, String keyVersion) {
         DeviceCategory value;
         switch (field.getFieldCase()) {
             case PLAIN:
@@ -206,8 +204,8 @@ public class FilterService {
             case ENCRYPTED:
                 if (encryptionService == null)
                     throw new IllegalStateException("Field " + name + " is encrypted, but the platform is not properly configured to use encryption.");
-                // TODO: Extract version from encrypted field or use version-aware filtering
-                value = DeviceCategory.forNumber((int) encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion()));
+                // uses the key version from the asset
+                value = DeviceCategory.forNumber((int) encryptionService.decryptLong(field.getEncrypted(), keyVersion));
                 break;
             default:
                 return false;
