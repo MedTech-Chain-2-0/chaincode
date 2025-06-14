@@ -103,15 +103,8 @@ public class AverageQuery extends QueryProcessor {
                 var fieldValue = (DeviceDataAsset.TimestampField) field;
                 switch (fieldValue.getFieldCase()) {
                     case PLAIN:
-                        // Only include valid timestamps (greater than 0)
-                        long seconds = fieldValue.getPlain().getSeconds();
-                        if (seconds > 0) {
-                            plainSum += seconds;
-                            plainCount++;
-                            logger.fine("Added valid timestamp: " + seconds);
-                        } else {
-                            logger.fine("Skipping invalid timestamp: " + seconds);
-                        }
+                        plainSum += fieldValue.getPlain().getSeconds();
+                        plainCount++;
                         break;
                         
                     case ENCRYPTED:
@@ -123,14 +116,8 @@ public class AverageQuery extends QueryProcessor {
                             logger.fine("Adding encrypted timestamp value: " + fieldValue.getEncrypted());
                             encryptedValues.add(fieldValue.getEncrypted());
                         } else {
-                            long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                            if (decrypted > 0) {
-                                plainSum += decrypted;
-                                plainCount++;
-                                logger.fine("Added valid decrypted timestamp: " + decrypted);
-                            } else {
-                                logger.fine("Skipping invalid decrypted timestamp: " + decrypted);
-                            }
+                            plainSum += encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                            plainCount++;
                         }
                         break;
                         
@@ -178,21 +165,21 @@ public class AverageQuery extends QueryProcessor {
                 
                 logger.info("All batches processed, decrypting final sum");
                 // decrypt final sum and add to plain sum
-                long decryptedSum = encryptionService.decryptLong(encryptedSum, version);
-                if (decryptedSum > 0) {
-                    plainSum += decryptedSum;
-                    plainCount += encryptedValues.size();
-                    logger.info("Added valid decrypted sum: " + decryptedSum);
-                } else {
-                    logger.warning("Skipping invalid decrypted sum: " + decryptedSum);
-                }
+                plainSum += encryptionService.decryptLong(encryptedSum, version);
+                plainCount += encryptedValues.size();
+                logger.info("Decryption completed successfully");
+                
             } catch (Exception e) {
-                logger.warning("Error processing encrypted values: " + e.getMessage());
-                throw new RuntimeException("Failed to process encrypted values", e);
+                logger.severe("Failed to process encrypted values: " + e.getMessage());
+                logger.severe("Stack trace: " + e.toString());
+                for (StackTraceElement element : e.getStackTrace()) {
+                    logger.severe("  at " + element.toString());
+                }
+                throw new RuntimeException("Failed to process encrypted values: " + e.getMessage(), e);
             }
         }
         
-        logger.info("Final sum: " + plainSum + ", count: " + plainCount);
+        logger.info("Final sum for version " + version + ": " + plainSum + ", count: " + plainCount);
         return new AvgResult(plainSum, plainCount);
     }
 } 

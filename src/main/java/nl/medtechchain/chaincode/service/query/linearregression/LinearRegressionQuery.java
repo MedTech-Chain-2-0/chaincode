@@ -21,16 +21,15 @@ public class LinearRegressionQuery extends QueryProcessor {
     public QueryResult process(Query query, List<DeviceDataAsset> assets) {
         if (assets.isEmpty()) {
             return QueryResult.newBuilder()
-                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                    .setSlope(0.0)
-                    .setIntercept(0.0)
-                    .setRSquared(0.0)
-                    .build())
-                .build();
+                    .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
+                            .setSlope(0)
+                            .setIntercept(0)
+                            .setRSquared(0)
+                            .build())
+                    .build();
         }
 
         Map<String, List<DeviceDataAsset>> versionGroups = groupByVersion(assets);
-        
         double totalSlope = 0.0;
         double totalIntercept = 0.0;
         double totalRSquared = 0.0;
@@ -39,82 +38,71 @@ public class LinearRegressionQuery extends QueryProcessor {
         for (Map.Entry<String, List<DeviceDataAsset>> entry : versionGroups.entrySet()) {
             String version = entry.getKey();
             List<DeviceDataAsset> versionAssets = entry.getValue();
-            
-            logger.fine("Processing linear regression for " + versionAssets.size() + " assets with version: " + version);
-            
-            QueryResult versionResult = processVersionGroup(query, versionAssets, version);
-            if (versionResult.hasLinearRegressionResult()) {
-                QueryResult.LinearRegressionResult versionRegression = versionResult.getLinearRegressionResult();
-                totalSlope += versionRegression.getSlope();
-                totalIntercept += versionRegression.getIntercept();
-                totalRSquared += versionRegression.getRSquared();
-                validGroups++;
-            }
+            if (versionAssets.size() < 2) continue;
+            QueryResult.LinearRegressionResult result = calculateRegression(versionAssets, query.getTargetField());
+            totalSlope += result.getSlope();
+            totalIntercept += result.getIntercept();
+            totalRSquared += result.getRSquared();
+            validGroups++;
         }
 
         if (validGroups == 0) {
-            logger.warning("No valid version groups found for linear regression");
             return QueryResult.newBuilder()
-                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                    .setSlope(0.0)
-                    .setIntercept(0.0)
-                    .setRSquared(0.0)
-                    .build())
-                .build();
+                    .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
+                            .setSlope(0)
+                            .setIntercept(0)
+                            .setRSquared(0)
+                            .build())
+                    .build();
         }
 
         double avgSlope = totalSlope / validGroups;
         double avgIntercept = totalIntercept / validGroups;
         double avgRSquared = totalRSquared / validGroups;
 
-        logger.info("Average linear regression across all versions - Slope: " + avgSlope + 
-                   ", Intercept: " + avgIntercept + ", R-squared: " + avgRSquared);
-
         return QueryResult.newBuilder()
-            .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                .setSlope(avgSlope)
-                .setIntercept(avgIntercept)
-                .setRSquared(avgRSquared)
-                .build())
-            .build();
+                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
+                        .setSlope(avgSlope)
+                        .setIntercept(avgIntercept)
+                        .setRSquared(avgRSquared)
+                        .build())
+                .build();
     }
 
-    private QueryResult processVersionGroup(Query query, List<DeviceDataAsset> assets, String version) {
-        if (assets.size() < 2) {
-            logger.fine("Skipping version " + version + " - insufficient data points");
-            return QueryResult.newBuilder()
-                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                    .setSlope(0.0)
-                    .setIntercept(0.0)
-                    .setRSquared(0.0)
-                    .build())
-                .build();
-        }
-
-        // Extract x and y values from the assets in this group
-        double[] xValues = new double[assets.size()];
-        double[] yValues = new double[assets.size()];
-        
-        for (int i = 0; i < assets.size(); i++) {
+    private QueryResult.LinearRegressionResult calculateRegression(List<DeviceDataAsset> assets, String targetField) {
+        int n = assets.size();
+        double[] xValues = new double[n];
+        double[] yValues = new double[n];
+        for (int i = 0; i < n; i++) {
             DeviceDataAsset asset = assets.get(i);
             xValues[i] = asset.getTimestamp().getSeconds();
-            yValues[i] = getFieldValue(asset, query.getTargetField());
+            yValues[i] = getFieldValue(asset, targetField);
         }
-
-        double[] regression = calculateLinearRegression(xValues, yValues);
-        logger.fine("Linear regression for version " + version + 
-                   " - Slope: " + regression[0] + 
-                   ", Intercept: " + regression[1] + 
-                   ", R-squared: " + regression[2]);
-
-        return QueryResult.newBuilder()
-            .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                .setSlope(regression[0])
-                .setIntercept(regression[1])
-                .setRSquared(regression[2])
-                .build())
-            .build();
+        double meanX = Arrays.stream(xValues).average().orElse(0);
+        double meanY = Arrays.stream(yValues).average().orElse(0);
+        double numerator = 0, denominator = 0;
+        for (int i = 0; i < n; i++) {
+            double xDiff = xValues[i] - meanX;
+            double yDiff = yValues[i] - meanY;
+            numerator += xDiff * yDiff;
+            denominator += xDiff * xDiff;
+        }
+        double slope = denominator == 0 ? 0 : numerator / denominator;
+        double intercept = meanY - slope * meanX;
+        double ssTotal = 0, ssResidual = 0;
+        for (int i = 0; i < n; i++) {
+            double predictedY = slope * xValues[i] + intercept;
+            ssTotal += Math.pow(yValues[i] - meanY, 2);
+            ssResidual += Math.pow(yValues[i] - predictedY, 2);
+        }
+        double rSquared = ssTotal == 0 ? 0 : 1 - (ssResidual / ssTotal);
+        return QueryResult.LinearRegressionResult.newBuilder()
+                .setSlope(slope)
+                .setIntercept(intercept)
+                .setRSquared(rSquared)
+                .build();
     }
+
 
     private double getFieldValue(DeviceDataAsset asset, String fieldName) {
         var descriptor = getFieldDescriptor(fieldName);
@@ -138,7 +126,11 @@ public class LinearRegressionQuery extends QueryProcessor {
             case "devicedata.DeviceDataAsset.TimestampField":
                 var timestampField = (DeviceDataAsset.TimestampField) field;
                 if (timestampField.getFieldCase() == DeviceDataAsset.TimestampField.FieldCase.PLAIN) {
-                    return timestampField.getPlain().getSeconds();
+                    long seconds = timestampField.getPlain().getSeconds();
+                    if (seconds <= 0) {
+                        throw new IllegalArgumentException("Invalid timestamp value: " + seconds);
+                    }
+                    return seconds;
                 } else {
                     throw new IllegalArgumentException("Encrypted timestamp fields not supported for linear regression");
                 }

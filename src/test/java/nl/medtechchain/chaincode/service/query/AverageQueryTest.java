@@ -336,38 +336,7 @@ public class AverageQueryTest {
         Assertions.assertEquals(expected, result, 0.001, "Warranty expiry date average should be correct");
     }
     
-    @Test
-    public void testMixedTimestampFields() {
-        Map<String, Map<Object, Integer>> spec = new HashMap<>();
-        
-        // Production dates
-        Map<Object, Integer> productionDate = new HashMap<>();
-        Timestamp prodDate1 = Timestamp.newBuilder().setSeconds(1609459200).build(); // 2021-01-01
-        Timestamp prodDate2 = Timestamp.newBuilder().setSeconds(1640995200).build(); // 2022-01-01
-        productionDate.put(prodDate1, 2);
-        productionDate.put(prodDate2, 2);
-        spec.put("production_date", productionDate);
-        
-        // Warranty dates
-        Map<Object, Integer> warrantyDate = new HashMap<>();
-        Timestamp warrantyDate1 = Timestamp.newBuilder().setSeconds(1735689600).build(); // 2025-01-01
-        Timestamp warrantyDate2 = Timestamp.newBuilder().setSeconds(1767225600).build(); // 2026-01-01
-        warrantyDate.put(warrantyDate1, 2);
-        warrantyDate.put(warrantyDate2, 2);
-        spec.put("warranty_expiry_date", warrantyDate);
-        
-        List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 4);
-        
-        // Test production date average
-        double prodResult = executeAverage(assets, "production_date");
-        double expectedProd = (prodDate1.getSeconds() * 2 + prodDate2.getSeconds() * 2) / 4.0;
-        Assertions.assertEquals(expectedProd, prodResult, 0.001, "Production date average should be correct");
-        
-        // Test warranty date average
-        double warrantyResult = executeAverage(assets, "warranty_expiry_date");
-        double expectedWarranty = (warrantyDate1.getSeconds() * 2 + warrantyDate2.getSeconds() * 2) / 4.0;
-        Assertions.assertEquals(expectedWarranty, warrantyResult, 0.001, "Warranty expiry date average should be correct");
-    }
+    
     
     @Test
     public void testEncryptedTimestampFields() {
