@@ -171,10 +171,9 @@ public final class DeviceDataContract implements ContractInterface {
                     continue;
                 // previously data with old config id was filtered out, but now we want to include it however there might be corner cases
                 // where we truly wouldn't want to include it, so we need to be careful with this
-                // boolean valid = asset.getConfigId().equals(platformConfig.getId()) &&
-                //         tx.getFiltersList().stream().allMatch(filter -> filterService.checkFilter(asset, filter));
+                boolean valid = tx.getFiltersList().stream().allMatch(filter -> filterService.checkFilter(asset, filter));
 
-                // if (valid)
+                if (valid)
                     filteredDeviceData.add(asset);
 
             } catch (InvalidProtocolBufferException e) {
