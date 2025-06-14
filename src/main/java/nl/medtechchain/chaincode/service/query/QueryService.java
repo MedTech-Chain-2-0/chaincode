@@ -4,8 +4,10 @@ import com.google.privacy.differentialprivacy.LaplaceNoise;
 import com.google.protobuf.Descriptors;
 import nl.medtechchain.chaincode.config.ConfigOps;
 import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
+import nl.medtechchain.chaincode.service.query.average.AverageQuery;
 import nl.medtechchain.chaincode.service.query.count.CountQuery;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
+import nl.medtechchain.chaincode.service.query.linearregression.LinearRegressionQuery;
 import nl.medtechchain.chaincode.service.query.sum.SumQuery;
 import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCountQuery;
 import nl.medtechchain.proto.common.ChaincodeError;
@@ -72,6 +74,9 @@ public class QueryService {
                 break;
             case STD:
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_STD_FIELDS).orElse("");
+                break;
+            case LINEAR_REGRESSION:
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS).orElse("");
                 break;
         }
 
@@ -183,8 +188,12 @@ public class QueryService {
     public QueryResult average(Query query, List<DeviceDataAsset> assets) {
         var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
 
-        if (fieldType != DeviceDataFieldType.INTEGER)
-            throw new IllegalStateException("cannot run AVERAGE over " + fieldType);
+        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP) {
+            throw new IllegalStateException(
+                "Cannot run AVERAGE over " + fieldType + ". " +
+                "Only numeric and timestamp fields are supported for average calculations."
+            );
+        }
 
         QueryResult result = new AverageQuery(platformConfig).process(query, assets);
 
@@ -217,6 +226,31 @@ public class QueryService {
     
     public QueryResult std(Query query, List<DeviceDataAsset> assets) {
         throw new UnsupportedOperationException("Std query not yet implemented with new architecture");
+    }
+    
+    public QueryResult linearRegression(Query query, List<DeviceDataAsset> assets) {
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP)
+            throw new IllegalStateException("cannot run LINEAR_REGRESSION over " + fieldType);
+
+        QueryResult result = new LinearRegressionQuery(platformConfig).process(query, assets);
+
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            var regression = result.getLinearRegressionResult();
+            double noisySlope = noise.addNoise(regression.getSlope(), 1, getEpsilon(), 0);
+            double noisyIntercept = noise.addNoise(regression.getIntercept(), 1, getEpsilon(), 0);
+            result = QueryResult.newBuilder()
+                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
+                    .setSlope(noisySlope)
+                    .setIntercept(noisyIntercept)
+                    .setRSquared(regression.getRSquared())
+                    .build())
+                .build();
+        }
+
+        return result;
     }
     
     // helpers

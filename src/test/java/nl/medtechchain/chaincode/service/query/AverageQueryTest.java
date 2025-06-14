@@ -5,6 +5,7 @@ import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
 import nl.medtechchain.proto.query.Query;
 import nl.medtechchain.proto.query.QueryResult;
+import com.google.protobuf.Timestamp;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -294,7 +295,7 @@ public class AverageQueryTest {
         Map<String, Map<Object, Integer>> spec = new HashMap<>();
         Map<Object, Integer> productionDate = new HashMap<>();
         
-        // Create timestamps for different production dates
+        // timestamps for different production dates
         Timestamp date1 = Timestamp.newBuilder().setSeconds(1609459200).build(); // 2021-01-01
         Timestamp date2 = Timestamp.newBuilder().setSeconds(1640995200).build(); // 2022-01-01
         Timestamp date3 = Timestamp.newBuilder().setSeconds(1672531200).build(); // 2023-01-01
@@ -317,7 +318,7 @@ public class AverageQueryTest {
         Map<String, Map<Object, Integer>> spec = new HashMap<>();
         Map<Object, Integer> warrantyDate = new HashMap<>();
         
-        // Create timestamps for different warranty expiry dates
+        // timestamps for different warranty expiry dates
         Timestamp date1 = Timestamp.newBuilder().setSeconds(1735689600).build(); // 2025-01-01
         Timestamp date2 = Timestamp.newBuilder().setSeconds(1767225600).build(); // 2026-01-01
         Timestamp date3 = Timestamp.newBuilder().setSeconds(1798761600).build(); // 2027-01-01

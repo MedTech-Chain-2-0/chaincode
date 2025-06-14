@@ -90,6 +90,9 @@ public final class DeviceDataContract implements ContractInterface {
                         case STD:
                             r = queryService.std(query, data);
                             break;
+                        case LINEAR_REGRESSION:
+                            r = queryService.linearRegression(query, data);
+                            break;
                     }
                 } catch (Exception t) {
                     logger.log(Level.WARNING, "Query error", t);
