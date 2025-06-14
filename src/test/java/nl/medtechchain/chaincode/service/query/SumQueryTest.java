@@ -33,20 +33,19 @@ public class SumQueryTest {
                 .build();
     }
     
-    private long executeSum(List<DeviceDataAsset> assets, String targetField) {
+    private long executeSum(List<DeviceDataAsset> assets, String targetField, TestEncryptionService enc) {
         SumQuery sumQuery = new SumQuery(testConfig);
-        // inject test encryption service via reflection
-        try {
-            var encryptionServiceField = sumQuery.getClass().getSuperclass().getDeclaredField("encryptionService");
-            encryptionServiceField.setAccessible(true);
-            encryptionServiceField.set(sumQuery, new TestEncryptionService());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to inject test encryption service", e);
+        if (enc != null) {
+            try {
+                var encryptionServiceField = sumQuery.getClass().getSuperclass().getDeclaredField("encryptionService");
+                encryptionServiceField.setAccessible(true);
+                encryptionServiceField.set(sumQuery, enc);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to inject test encryption service", e);
+            }
         }
-        
         Query query = buildSumQuery(targetField);
-        QueryResult result = sumQuery.process(query, assets);
-        return result.getSumResult();
+        return sumQuery.process(query, assets).getSumResult();
     }
     
     // helper for plaintext-only tests (null encryption service)
@@ -69,7 +68,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 1);
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         Assertions.assertEquals(100, result, "Single asset sum should be 100");
     }
@@ -82,7 +81,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 5);
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         Assertions.assertEquals(250, result, "Sum of 5 assets with value 50 should be 250");
     }
@@ -97,7 +96,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 6);
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         long expected = 100 * 3 + 200 * 2 + 300 * 1; // = 300 + 400 + 300 = 1000
         Assertions.assertEquals(expected, result, "Sum should be 1000");
@@ -106,7 +105,7 @@ public class SumQueryTest {
     @Test
     public void testEmptyAssetList() {
         List<DeviceDataAsset> assets = Collections.emptyList();
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         Assertions.assertEquals(0, result, "Sum of empty list should be 0");
     }
@@ -120,7 +119,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 5);
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         Assertions.assertEquals(200, result, "Sum should ignore zeros: 0*3 + 100*2 = 200");
     }
@@ -136,7 +135,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 3);
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         long expected = 1000000L * 2 + 2000000L; // = 4,000,000
         Assertions.assertEquals(expected, result, "Large values should be handled correctly");
@@ -151,7 +150,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 3);
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         long expected = -100 * 2 + 300; // = -200 + 300 = 100
         Assertions.assertEquals(expected, result, "Negative values should be handled correctly");
@@ -167,7 +166,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 5);
-        long result = executeSumPlaintextOnly(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         long expected = 100 * 2 + 200 * 3; // = 200 + 600 = 800
         Assertions.assertEquals(expected, result, "Plaintext data should work fine without encryption service");
@@ -185,7 +184,7 @@ public class SumQueryTest {
         
         IllegalStateException exception = Assertions.assertThrows(
             IllegalStateException.class,
-            () -> executeSumPlaintextOnly(assets, "usage_hours")
+            () -> executeSum(assets, "usage_hours", null)
         );
         
         Assertions.assertTrue(exception.getMessage().contains("Found encrypted data but no encryption service configured"));
@@ -321,7 +320,7 @@ public class SumQueryTest {
         spec.put("battery_level", batteryLevel);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 6);
-        long result = executeSum(assets, "battery_level");
+        long result = executeSum(assets, "battery_level", null);
         
         long expected = 75 * 4 + 50 * 2; // = 300 + 100 = 400
         Assertions.assertEquals(expected, result, "Battery level sum should be 400");
@@ -337,7 +336,7 @@ public class SumQueryTest {
         spec.put("sync_frequency_seconds", syncFreq);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 8);
-        long result = executeSum(assets, "sync_frequency_seconds");
+        long result = executeSum(assets, "sync_frequency_seconds", null);
         
         long expected = 60 * 5 + 120 * 3; // = 300 + 360 = 660
         Assertions.assertEquals(expected, result, "Sync frequency sum should be 660");
@@ -387,7 +386,27 @@ public class SumQueryTest {
         Assertions.assertTrue(actualVersions.contains("paillier-v2"), "Should have paillier-v2 assets");
     }
     
+    @Test
+    public void testMixedPlainAndEncrypted() {
+        // Mix plaintext and Paillier-encrypted values in the same dataset
+        Set<String> versions = Set.of("paillier-v1");
+        TestEncryptionService enc = new TestEncryptionService(true, false, versions, "paillier-v1");
 
+        Map<String, Map<Object, Integer>> spec = new HashMap<>();
+        Map<Object, Integer> usage = new HashMap<>();
+
+        // plaintext
+        usage.put(100, 2);              // 2×100 = 200
+        // ciphertext
+        usage.put(TestEncryptionService.encryptLong(50, "paillier-v1"), 4); // 4×50 = 200
+        spec.put("usage_hours", usage);
+
+        List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 6);
+
+        long result = executeSum(assets, "usage_hours", enc);
+
+        Assertions.assertEquals(400, result);
+    }
     
     // ================ Stress Tests ================
     
@@ -400,7 +419,7 @@ public class SumQueryTest {
         spec.put("usage_hours", usageHours);
         
         List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 100);
-        long result = executeSum(assets, "usage_hours");
+        long result = executeSum(assets, "usage_hours", null);
         
         Assertions.assertEquals(1000, result, "Sum of 100 assets with value 10 should be 1000");
     }
