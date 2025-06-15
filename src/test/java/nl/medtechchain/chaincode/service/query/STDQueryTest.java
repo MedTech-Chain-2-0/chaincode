@@ -187,5 +187,45 @@ public class STDQueryTest {
         
         
     }
-
+    
+    @Test
+    public void testPaillierTimeStamp() {
+        STDQuery stdQuery = new STDQuery(testConfig);
+        
+        // setup paillier encryption
+        Set<String> versions = Set.of("paillier-v1");
+        TestEncryptionService paillierService = new TestEncryptionService(true, false, versions, "paillier-v1");
+        
+        try {
+            var encryptionServiceField = stdQuery.getClass().getSuperclass().getDeclaredField("encryptionService");
+            encryptionServiceField.setAccessible(true);
+            encryptionServiceField.set(stdQuery, paillierService);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to inject test encryption service", e);
+        }
+        
+        Map<String, Map<Object, Integer>> spec = new HashMap<>();
+        Map<Object, Integer> production_date = new HashMap<>();
+        
+        // only paillier encrypted values
+        production_date.put(TestEncryptionService.encryptLong(5, "paillier-v1"), 2);
+        production_date.put(TestEncryptionService.encryptLong(6, "paillier-v1"), 3);
+        spec.put("production_date", production_date);
+        
+        List<DeviceDataAsset> assets = generator.generateAssetsWithCounts(spec, 5);
+        Query query = buildSTDQuery("production_date");
+        QueryResult result = stdQuery.process(query, assets);
+        
+        double mean = (5.0 * 2 + 3 * 6) / 5.0;
+        double sum = 2 * (5 - mean) * (5 - mean) + 3 * (6 - mean) * (6 - mean);
+        double expected = Math.sqrt(sum / 5); 
+        Assertions.assertEquals(expected, result.getMeanStd().getStd(), 0.0001);
+        
+        // verify all assets are paillier encrypted
+        for (DeviceDataAsset asset : assets) {
+            Assertions.assertEquals("paillier-v1", asset.getKeyVersion());
+            Assertions.assertEquals(DeviceDataAsset.TimestampField.FieldCase.ENCRYPTED, 
+                    asset.getDeviceData().getProductionDate().getFieldCase());
+        }
+    }
 } 
