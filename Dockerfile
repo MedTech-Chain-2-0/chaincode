@@ -68,15 +68,18 @@ RUN wget https://github.com/google/or-tools/releases/download/v9.9/or-tools_amd6
 
 RUN addgroup --system javauser && useradd -g javauser javauser
 
+# make /app owned by javauser so chaincode can create fhe_data
+RUN chown -R javauser:javauser /app
+
 # chaincode jar & entrypoint
 COPY --from=builder --chown=javauser:javauser /home/gradle/src/build/libs/medtechchain.jar /app/chaincode.jar
 COPY --from=builder --chown=javauser:javauser /home/gradle/src/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # OpenFHE libs and bfv_calc
 COPY --from=openfhe-build /usr/local/lib/libOPENFHE* /usr/local/lib/
-COPY --from=bfv-build /fhe/build/bfv_calc /usr/local/bin/bfv_calc
+COPY --from=bfv-build /fhe/build/bfv_calc /app/bfv_calc
 
-RUN chmod +x /usr/local/bin/bfv_calc /app/docker-entrypoint.sh
+RUN chmod +x /app/bfv_calc /app/docker-entrypoint.sh
 
 ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 ENV PORT 9999
