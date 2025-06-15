@@ -229,7 +229,7 @@ public class QueryService {
     public QueryResult std(Query query, List<DeviceDataAsset> assets) {
         var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
 
-        if (fieldType != DeviceDataFieldType.INTEGER)
+        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP)
             throw new IllegalStateException("cannot run STD over " + fieldType);
 
         QueryResult result = new STDQuery(platformConfig).process(query, assets);
