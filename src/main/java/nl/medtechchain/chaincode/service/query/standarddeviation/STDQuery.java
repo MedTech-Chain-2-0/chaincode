@@ -6,11 +6,14 @@ import nl.medtechchain.proto.query.QueryResult;
 import nl.medtechchain.proto.query.Query;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
 import nl.medtechchain.proto.query.QueryResult.MeanAndStd;
+
 import com.google.protobuf.Descriptors;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import nl.medtechchain.proto.devicedata.DeviceCategory;
  
 
 public class STDQuery extends QueryProcessor {
@@ -92,32 +95,66 @@ public class STDQuery extends QueryProcessor {
         
         for (DeviceDataAsset asset : assets) {
             // Get the field value using protobuf reflection
-            var fieldValue = (DeviceDataAsset.IntegerField) asset.getDeviceData().getField(fieldDescriptor);
+            var fieldType = asset.getDeviceData().getField(fieldDescriptor);
             
-            switch (fieldValue.getFieldCase()) {
-                case PLAIN:
-                    plainSum += fieldValue.getPlain();
-                    break;
-                    
-                case ENCRYPTED:
-                    if (encryptionService == null) {
-                        throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
-                            "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
-                    }
-                    if (encryptionService.isHomomorphic()) {
-                        // Collect encrypted values for homomorphic addition
-                        encryptedValues.add(fieldValue.getEncrypted());
-                    } else {
-                        // Non-homomorphic: decrypt and add to plain sum
-                        plainSum += encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                    }
-                    break;
-                    
-                case FIELD_NOT_SET:
-                    // Skip assets with no value for this field
-                    logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
-                    break;
+            if (fieldType instanceof  DeviceDataAsset.IntegerField) {
+                var fieldValue = (DeviceDataAsset.IntegerField) fieldType;
+                            
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        plainSum += fieldValue.getPlain();
+                        break;
+                        
+                    case ENCRYPTED:
+                        if (encryptionService == null) {
+                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
+                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
+                        }
+                        if (encryptionService.isHomomorphic()) {
+                            // Collect encrypted values for homomorphic addition
+                            encryptedValues.add(fieldValue.getEncrypted());
+                        } else {
+                            // Non-homomorphic: decrypt and add to plain sum
+                            plainSum += encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                        }
+                        break;
+                        
+                    case FIELD_NOT_SET:
+                        // Skip assets with no value for this field
+                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                        break;
+                }
             }
+            else if (fieldType instanceof DeviceDataAsset.TimestampField) {
+                var fieldValue = (DeviceDataAsset.TimestampField) fieldType;
+
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        plainSum += fieldValue.getPlain().getSeconds();
+                        break;
+                        
+                    case ENCRYPTED:
+                        if (encryptionService == null) {
+                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
+                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
+                        }
+                        if (encryptionService.isHomomorphic()) {
+                            // Collect encrypted values for homomorphic addition
+                            encryptedValues.add(fieldValue.getEncrypted());
+                        } else {
+                            // Non-homomorphic: decrypt and add to plain sum
+                            plainSum += encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                        }
+                        break;
+                        
+                    case FIELD_NOT_SET:
+                        // Skip assets with no value for this field
+                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                        break;
+                }
+                
+            }
+
         }
         
         // Handle encrypted values if any
@@ -149,35 +186,70 @@ public class STDQuery extends QueryProcessor {
 
 
         for (DeviceDataAsset asset : assets) {
-            // Get the field value using protobuf reflection
-            var fieldValue = (DeviceDataAsset.IntegerField) asset.getDeviceData().getField(fieldDescriptor);
+            var fieldType = asset.getDeviceData().getField(fieldDescriptor);
+            
+            if (fieldType instanceof DeviceDataAsset.IntegerField) {
+                var fieldValue = (DeviceDataAsset.IntegerField) fieldType;
 
-            switch (fieldValue.getFieldCase()) {
-                case PLAIN:
-                    plainStd += (fieldValue.getPlain() - mean) * (fieldValue.getPlain() - mean);
-                    break;
-                    
-                case ENCRYPTED:
-                    if (encryptionService == null) {
-                        throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
-                            "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
-                    }
-                    if (encryptionService.isHomomorphic()) {
-                        // TODO: make BFV scheme handle it fully homomorphically
-                        long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                        plainStd += ((double) decrypted - mean) * (decrypted - mean);
-                    } else {
-                        // Non-homomorphic: decrypt and add to plain sum
-                        long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                        plainStd += ((double) decrypted - mean) * (decrypted - mean);
-                    }
-                    break;
-                    
-                case FIELD_NOT_SET:
-                    // Skip assets with no value for this field
-                    logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
-                    break;
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        plainStd += (fieldValue.getPlain() - mean) * (fieldValue.getPlain() - mean);
+                        break;
+                        
+                    case ENCRYPTED:
+                        if (encryptionService == null) {
+                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
+                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
+                        }
+                        if (encryptionService.isHomomorphic()) {
+                            // TODO: make BFV scheme handle it fully homomorphically
+                            long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                            plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                        } else {
+                            // Non-homomorphic: decrypt and add to plain sum
+                            long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                            plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                        }
+                        break;
+                        
+                    case FIELD_NOT_SET:
+                        // Skip assets with no value for this field
+                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                        break;
+                }
+            } else if (fieldType instanceof DeviceDataAsset.TimestampField) {
+                var fieldValue = (DeviceDataAsset.TimestampField) fieldType;
+
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        plainStd += (fieldValue.getPlain().getSeconds() - mean) * (fieldValue.getPlain().getSeconds() - mean);
+                        break;
+                        
+                    case ENCRYPTED:
+                        if (encryptionService == null) {
+                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
+                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
+                        }
+                        if (encryptionService.isHomomorphic()) {
+                            // TODO: make BFV scheme handle it fully homomorphically
+                            long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                            plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                        } else {
+                            // Non-homomorphic: decrypt and add to plain sum
+                            long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                            plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                        }
+                        break;
+                        
+                    case FIELD_NOT_SET:
+                        // Skip assets with no value for this field
+                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                        break;
+                }
+
             }
+            // Get the field value using protobuf reflection
+            
         }
         
         // TODO: If BFV implemented
