@@ -10,6 +10,7 @@ import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
 import nl.medtechchain.chaincode.service.query.linearregression.LinearRegressionQuery;
 import nl.medtechchain.chaincode.service.query.sum.SumQuery;
 import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCountQuery;
+import nl.medtechchain.chaincode.service.query.histogram.HistogramQuery;
 import nl.medtechchain.proto.common.ChaincodeError;
 import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceCategory;
@@ -222,7 +223,27 @@ public class QueryService {
     }
     
     public QueryResult histogram(Query query, List<DeviceDataAsset> assets) {
-        throw new UnsupportedOperationException("Histogram query not yet implemented with new architecture");
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        // Only allow histogram for INTEGER and TIMESTAMP fields
+        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP) {
+            throw new IllegalStateException("Cannot run HISTOGRAM over " + fieldType + 
+                ". Only INTEGER and TIMESTAMP fields are supported.");
+        }
+
+        QueryResult result = new HistogramQuery(platformConfig, query.getBinSize()).process(query, assets);
+
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            // Apply noise to each bin count
+            var noisyBuilder = QueryResult.GroupedCount.newBuilder();
+            result.getGroupedCountResult().getMapMap().forEach((key, value) -> 
+                noisyBuilder.putMap(key, Math.abs(noise.addNoise(value, 1, getEpsilon(), null)))
+            );
+            result = QueryResult.newBuilder().setGroupedCountResult(noisyBuilder.build()).build();
+        }
+
+        return result;
     }
     
     public QueryResult std(Query query, List<DeviceDataAsset> assets) {
