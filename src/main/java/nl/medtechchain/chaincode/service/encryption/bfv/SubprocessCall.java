@@ -35,6 +35,7 @@ class SubprocessCall {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
             String firstLine = br.readLine();
             int exit = proc.waitFor();
+            String command = String.join(" ", cmd);
             if (exit != 0) {
                 throw new IOException("CLI exited with code " + exit + ": " + String.join(" ", cmd));
             }

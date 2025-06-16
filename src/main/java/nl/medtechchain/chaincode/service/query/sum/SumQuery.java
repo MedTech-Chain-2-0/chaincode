@@ -1,6 +1,7 @@
 package nl.medtechchain.chaincode.service.query.sum;
 
 import com.google.protobuf.Descriptors;
+
 import nl.medtechchain.chaincode.service.query.QueryProcessor;
 import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
@@ -10,6 +11,9 @@ import nl.medtechchain.proto.query.QueryResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import nl.medtechchain.chaincode.service.encryption.BfvEncryptionService;
+import nl.medtechchain.chaincode.service.encryption.PaillierEncryptionService;
 
 // Sums up integer fields - handles mixed plain/encrypted data
 public class SumQuery extends QueryProcessor {
@@ -82,9 +86,15 @@ public class SumQuery extends QueryProcessor {
             
             if (encryptedValues.size() == 1) {
                 encryptedSum = encryptedValues.get(0);
-            } else {
+            } else if (encryptionService instanceof  PaillierEncryptionService) {
                 // Use homomorphic addition to sum all encrypted values
                 encryptedSum = encryptionService.homomorphicAdd(encryptedValues, version);
+            }
+            else if (encryptionService instanceof BfvEncryptionService) {
+                encryptedSum = encryptionService.homomorphicAdd(encryptedValues, null);
+            }
+            else {
+                encryptedSum = "";
             }
             
             // Decrypt the final sum and add to plain sum

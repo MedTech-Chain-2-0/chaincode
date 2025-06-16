@@ -31,7 +31,8 @@ The deployment is performed by automation scripts from the `tools` repository.
 
 1. **Prepare the FHE sources** (only when FHE code changes)
    ```bash
-   chaincode/scripts/copy-fhe.sh
+   cd chaincode/scripts
+   ./copy-fhe.sh
    ```
    This drops a tiny `fhe-src/` folder into the repo; the Dockerfile
    compiles the `bfv_calc` binary from it.

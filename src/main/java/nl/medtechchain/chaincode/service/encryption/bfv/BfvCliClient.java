@@ -23,4 +23,15 @@ public class BfvCliClient {
         args.addAll(ciphertexts);
         return SubprocessCall.executeBfv(binaryPath, args.toArray(String[]::new)).trim();
     }
+
+    public String multiply(String ciphertext1, String ciphertext2) throws IOException {
+         if (ciphertext1 == null || ciphertext2 == null) {
+            throw new IllegalArgumentException("Ciphertexts cannot be null");
+        }
+        List<String> args = new ArrayList<>(3);
+        args.add("mul");
+        args.add(ciphertext1);
+        args.add(ciphertext2);
+        return SubprocessCall.executeBfv(binaryPath, args.toArray(String[]::new)).trim();
+    }
 } 
