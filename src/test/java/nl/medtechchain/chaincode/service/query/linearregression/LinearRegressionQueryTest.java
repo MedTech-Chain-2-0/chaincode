@@ -1,6 +1,7 @@
 package nl.medtechchain.chaincode.service.query.linearregression;
 
 import com.google.protobuf.Timestamp;
+import nl.medtechchain.chaincode.service.query.TestEncryptionService;
 import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
 import nl.medtechchain.proto.query.Query;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -17,11 +19,21 @@ class LinearRegressionQueryTest {
 
     private LinearRegressionQuery linearRegressionQuery;
     private PlatformConfig platformConfig;
+    private TestEncryptionService encryptionService;
 
     @BeforeEach
     void setUp() {
         platformConfig = PlatformConfig.getDefaultInstance();
         linearRegressionQuery = new LinearRegressionQuery(platformConfig);
+        // Initialize encryption service with no encryption for plaintext tests
+        encryptionService = new TestEncryptionService(false, false, Set.of(), null);
+        try {
+            var encryptionServiceField = linearRegressionQuery.getClass().getSuperclass().getDeclaredField("encryptionService");
+            encryptionServiceField.setAccessible(true);
+            encryptionServiceField.set(linearRegressionQuery, encryptionService);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to inject test encryption service", e);
+        }
     }
 
     @Test
@@ -102,7 +114,6 @@ class LinearRegressionQueryTest {
 
         assertNotNull(result);
         assertTrue(result.hasLinearRegressionResult());
-
         assertTrue(result.getLinearRegressionResult().getRSquared() < 0.5);
     }
 
@@ -124,7 +135,6 @@ class LinearRegressionQueryTest {
 
         assertNotNull(result);
         assertTrue(result.hasLinearRegressionResult());
-
         assertTrue(result.getLinearRegressionResult().getRSquared() > 0.5);
     }
 

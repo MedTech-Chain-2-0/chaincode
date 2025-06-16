@@ -5,10 +5,8 @@ import nl.medtechchain.proto.config.PlatformConfig;
 import nl.medtechchain.proto.devicedata.DeviceDataAsset;
 import nl.medtechchain.proto.query.Query;
 import nl.medtechchain.proto.query.QueryResult;
-
 import java.util.*;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 public class LinearRegressionQuery extends QueryProcessor {
     private static final Logger logger = Logger.getLogger(LinearRegressionQuery.class.getName());
@@ -29,24 +27,31 @@ public class LinearRegressionQuery extends QueryProcessor {
                     .build();
         }
 
+        //group by version
         Map<String, List<DeviceDataAsset>> versionGroups = groupByVersion(assets);
-        double totalSlope = 0.0;
-        double totalIntercept = 0.0;
-        double totalRSquared = 0.0;
-        int validGroups = 0;
+        
+        // store by version
+        List<RegressionResult> versionResults = new ArrayList<>();
+        int total_points = 0;
 
         for (Map.Entry<String, List<DeviceDataAsset>> entry : versionGroups.entrySet()) {
             String version = entry.getKey();
             List<DeviceDataAsset> versionAssets = entry.getValue();
-            if (versionAssets.size() < 2) continue;
-            QueryResult.LinearRegressionResult result = calculateRegression(versionAssets, query.getTargetField());
-            totalSlope += result.getSlope();
-            totalIntercept += result.getIntercept();
-            totalRSquared += result.getRSquared();
-            validGroups++;
+            
+            if (versionAssets.size() < 2) {
+                logger.fine("Skipping version " + version + " with insufficient points: " + versionAssets.size());
+                continue;
+            }
+
+            logger.fine("Processing regression for " + versionAssets.size() + " assets with version: " + version);
+            RegressionResult result = processVersionGroup(versionAssets, query.getTargetField(), version);
+            if (result != null) {
+                versionResults.add(result);
+                total_points += versionAssets.size();
+            }
         }
 
-        if (validGroups == 0) {
+        if (versionResults.isEmpty()) {
             return QueryResult.newBuilder()
                     .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
                             .setSlope(0)
@@ -56,31 +61,80 @@ public class LinearRegressionQuery extends QueryProcessor {
                     .build();
         }
 
-        double avgSlope = totalSlope / validGroups;
-        double avgIntercept = totalIntercept / validGroups;
-        double avgRSquared = totalRSquared / validGroups;
+        // Calculate weighted average of results based on number of points in each version
+        double totalWeightedSlope = 0;
+        double totalWeightedIntercept = 0;
+        double totalWeightedRSquared = 0;
+
+        for (RegressionResult result : versionResults) {
+            double weight = (double) result.point_count / total_points;
+            totalWeightedSlope += result.slope * weight;
+            totalWeightedIntercept += result.intercept * weight;
+            totalWeightedRSquared += result.rSquared * weight;
+        }
 
         return QueryResult.newBuilder()
                 .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                        .setSlope(avgSlope)
-                        .setIntercept(avgIntercept)
-                        .setRSquared(avgRSquared)
+                        .setSlope(totalWeightedSlope)
+                        .setIntercept(totalWeightedIntercept)
+                        .setRSquared(totalWeightedRSquared)
                         .build())
                 .build();
     }
 
-    private QueryResult.LinearRegressionResult calculateRegression(List<DeviceDataAsset> assets, String targetField) {
+    private RegressionResult processVersionGroup(List<DeviceDataAsset> assets, String target_field, String version) {
         int n = assets.size();
         double[] xValues = new double[n];
         double[] yValues = new double[n];
+        int validPoints = 0;
+        List<String> encryptedYValues = new ArrayList<>();
+        double plainYSum = 0;
+        int plainCount = 0;
         for (int i = 0; i < n; i++) {
             DeviceDataAsset asset = assets.get(i);
             xValues[i] = asset.getTimestamp().getSeconds();
-            yValues[i] = getFieldValue(asset, targetField);
+            try {
+                var fieldValue = getFieldValue(asset, target_field);
+                if (fieldValue.isEncrypted()) {
+                    if (encryptionService == null) {
+                        throw new IllegalStateException("Found encrypted data but no encryption service configured");
+                    }
+                    if (encryptionService.isHomomorphic()) {
+                        encryptedYValues.add(fieldValue.getEncryptedValue());
+                    } else {
+                        yValues[i] = encryptionService.decryptLong(fieldValue.getEncryptedValue(), version);
+                        validPoints++;
+                    }
+                } else {
+                    yValues[i] = fieldValue.getPlainValue();
+                    plainYSum += yValues[i];
+                    plainCount++;
+                    validPoints++;
+                }
+            } catch (Exception e) {
+                logger.warning("Error processing data point: " + e.getMessage());
+                continue;
+            }
+        }
+        if (!encryptedYValues.isEmpty()) {
+            String encryptedSum;
+            if (encryptedYValues.size() == 1) {
+                encryptedSum = encryptedYValues.get(0);
+            } else {
+                encryptedSum = encryptionService.homomorphicAdd(encryptedYValues, version);
+            }
+            double decryptedSum = encryptionService.decryptLong(encryptedSum, version);
+            plainYSum += decryptedSum;
+            plainCount += encryptedYValues.size();
+            validPoints += encryptedYValues.size();
+        }
+        if (validPoints < 2) {
+            return null;
         }
         double meanX = Arrays.stream(xValues).average().orElse(0);
-        double meanY = Arrays.stream(yValues).average().orElse(0);
-        double numerator = 0, denominator = 0;
+        double meanY = plainYSum / plainCount;
+        double numerator = 0;
+        double denominator = 0;
         for (int i = 0; i < n; i++) {
             double xDiff = xValues[i] - meanX;
             double yDiff = yValues[i] - meanY;
@@ -89,22 +143,63 @@ public class LinearRegressionQuery extends QueryProcessor {
         }
         double slope = denominator == 0 ? 0 : numerator / denominator;
         double intercept = meanY - slope * meanX;
-        double ssTotal = 0, ssResidual = 0;
+        double ssTotal = 0;
+        double ssResidual = 0;
         for (int i = 0; i < n; i++) {
             double predictedY = slope * xValues[i] + intercept;
             ssTotal += Math.pow(yValues[i] - meanY, 2);
             ssResidual += Math.pow(yValues[i] - predictedY, 2);
         }
         double rSquared = ssTotal == 0 ? 0 : 1 - (ssResidual / ssTotal);
-        return QueryResult.LinearRegressionResult.newBuilder()
-                .setSlope(slope)
-                .setIntercept(intercept)
-                .setRSquared(rSquared)
-                .build();
+        return new RegressionResult(slope, intercept, rSquared, validPoints);
     }
 
+    private static class RegressionResult {
+        final double slope;
+        final double intercept;
+        final double rSquared;
+        final int point_count;
+        RegressionResult(double slope, double intercept, double rSquared, int point_count) {
+            this.slope = slope;
+            this.intercept = intercept;
+            this.rSquared = rSquared;
+            this.point_count = point_count;
+        }
+    }
 
-    private double getFieldValue(DeviceDataAsset asset, String fieldName) {
+    private static class FieldValue {
+        private final boolean isEncrypted;
+        private final String encryptedValue;
+        private final double plainValue;
+
+        private FieldValue(boolean isEncrypted, String encryptedValue, double plainValue) {
+            this.isEncrypted = isEncrypted;
+            this.encryptedValue = encryptedValue;
+            this.plainValue = plainValue;
+        }
+
+        static FieldValue encrypted(String value) {
+            return new FieldValue(true, value, 0);
+        }
+
+        static FieldValue plain(double value) {
+            return new FieldValue(false, null, value);
+        }
+
+        boolean isEncrypted() {
+            return isEncrypted;
+        }
+
+        String getEncryptedValue() {
+            return encryptedValue;
+        }
+
+        double getPlainValue() {
+            return plainValue;
+        }
+    }
+
+    private FieldValue getFieldValue(DeviceDataAsset asset, String fieldName) {
         var descriptor = getFieldDescriptor(fieldName);
         if (descriptor == null) {
             throw new IllegalArgumentException("Unknown field: " + fieldName);
@@ -119,9 +214,11 @@ public class LinearRegressionQuery extends QueryProcessor {
             case "devicedata.DeviceDataAsset.IntegerField":
                 var intField = (DeviceDataAsset.IntegerField) field;
                 if (intField.getFieldCase() == DeviceDataAsset.IntegerField.FieldCase.PLAIN) {
-                    return intField.getPlain();
+                    return FieldValue.plain(intField.getPlain());
+                } else if (intField.getFieldCase() == DeviceDataAsset.IntegerField.FieldCase.ENCRYPTED) {
+                    return FieldValue.encrypted(intField.getEncrypted());
                 } else {
-                    throw new IllegalArgumentException("Encrypted integer fields not supported for linear regression");
+                    throw new IllegalArgumentException("Field value not set: " + fieldName);
                 }
             case "devicedata.DeviceDataAsset.TimestampField":
                 var timestampField = (DeviceDataAsset.TimestampField) field;
@@ -130,40 +227,14 @@ public class LinearRegressionQuery extends QueryProcessor {
                     if (seconds <= 0) {
                         throw new IllegalArgumentException("Invalid timestamp value: " + seconds);
                     }
-                    return seconds;
+                    return FieldValue.plain(seconds);
+                } else if (timestampField.getFieldCase() == DeviceDataAsset.TimestampField.FieldCase.ENCRYPTED) {
+                    return FieldValue.encrypted(timestampField.getEncrypted());
                 } else {
-                    throw new IllegalArgumentException("Encrypted timestamp fields not supported for linear regression");
+                    throw new IllegalArgumentException("Field value not set: " + fieldName);
                 }
             default:
                 throw new IllegalArgumentException("Unsupported field type for linear regression: " + fieldName);
         }
-    }
-
-    private double[] calculateLinearRegression(double[] x, double[] y) {
-        int n = x.length;
-        double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
-
-        for (int i = 0; i < n; i++) {
-            sumX += x[i];
-            sumY += y[i];
-            sumXY += x[i] * y[i];
-            sumX2 += x[i] * x[i];
-            sumY2 += y[i] * y[i];
-        }
-
-        double slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-        double intercept = (sumY - slope * sumX) / n;
-
-
-        double meanY = sumY / n;
-        double ssTotal = 0, ssResidual = 0;
-        for (int i = 0; i < n; i++) {
-            double predicted = slope * x[i] + intercept;
-            ssTotal += Math.pow(y[i] - meanY, 2);
-            ssResidual += Math.pow(y[i] - predicted, 2);
-        }
-        double rSquared = 1 - (ssResidual / ssTotal);
-
-        return new double[]{slope, intercept, rSquared};
     }
 } 
