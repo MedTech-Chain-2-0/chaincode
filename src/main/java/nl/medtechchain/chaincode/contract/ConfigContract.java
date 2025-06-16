@@ -29,6 +29,11 @@ public final class ConfigContract implements ContractInterface {
     private static final String CURRENT_NETWORK_CONFIG_KEY = "CURRENT_NETWORK_CONFIG";
     private static final String CURRENT_PLATFORM_CONFIG_KEY = "CURRENT_PLATFORM_CONFIG";
 
+    // Numeric IDs for BFV config entries (proto enum values)
+    private static final int BFV_CTX_ID  = 17;
+    private static final int BFV_SUM_ID  = 18;
+    private static final int BFV_MULT_ID = 19;
+
     public static NetworkConfig currentNetworkConfig(Context ctx) throws InvalidProtocolBufferException {
         return decode64(ctx.getStub().getStringState(CURRENT_NETWORK_CONFIG_KEY), NetworkConfig::parseFrom);
     }
@@ -64,6 +69,47 @@ public final class ConfigContract implements ContractInterface {
     public String UpdatePlatformConfig(Context ctx, String transaction) {
         try {
             var update = decode64(transaction, UpdatePlatformConfig::parseFrom);
+
+            // Check for BFV switch and presence of required fields
+            boolean switchingToBfv = update.getMapList().stream()
+                    .anyMatch(e -> e.getKey() == PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME
+                            && "bfv".equalsIgnoreCase(e.getValue()));
+
+            if (switchingToBfv) {
+                boolean hasCtx  = update.getMapList().stream()
+                        .anyMatch(e -> e.getKeyValue() == BFV_CTX_ID);
+                boolean hasMult = update.getMapList().stream()
+                        .anyMatch(e -> e.getKeyValue() == BFV_MULT_ID);
+
+                if (!(hasCtx && hasMult)) {
+                    return encode64(invalidTransaction("Switching encryption to bfv requires cryptocontext and multiply evaluation key."));
+                }
+
+                // write files locally for bfv_calc
+                try {
+                    java.nio.file.Path dir = java.nio.file.Paths.get("fhe_data");
+                    java.nio.file.Files.createDirectories(dir);
+                    for (PlatformConfig.Entry e : update.getMapList()) {
+                        switch (e.getKeyValue()) {
+                            case BFV_CTX_ID:
+                                java.nio.file.Files.write(dir.resolve("cryptocontext.txt"), java.util.Base64.getDecoder().decode(e.getValue()));
+                                break;
+                            case BFV_SUM_ID:
+                                // sum key currently unused since we don't use it for anything but in the future it will probably be used
+                                break;
+                            case BFV_MULT_ID:
+                                java.nio.file.Files.write(dir.resolve("key-eval-mult.txt"), java.util.Base64.getDecoder().decode(e.getValue()));
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                } catch (Exception io) {
+                    logger.warning("Failed to write BFV keys: " + io.getMessage());
+                    return encode64(invalidTransaction("Unable to store BFV evaluation keys on peer", io.toString()));
+                }
+            }
+
             var current = currentPlatformConfig(ctx);
             storePlatformConfig(ctx, ConfigOps.PlatformConfigOps.update(current, update.getMapList()));
             logger.info("Updated platform config: " + update);

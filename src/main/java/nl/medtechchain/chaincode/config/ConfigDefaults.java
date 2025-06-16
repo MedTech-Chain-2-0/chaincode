@@ -6,6 +6,9 @@ import nl.medtechchain.proto.config.NetworkConfig;
 import nl.medtechchain.proto.config.PlatformConfig;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +67,46 @@ public class ConfigDefaults {
             public static final int BIT_LENGTH = 2048;
         }
 
+        private static void checkBfvBinary() {
+            String binaryPath = "/usr/local/bin/bfv_calc";
+            Path binary = Paths.get(binaryPath);
+            
+            if (!Files.exists(binary)) {
+                logger.warning("FHE binary not found at: " + binaryPath);
+                return;
+            }
+            
+            if (!Files.isExecutable(binary)) {
+                logger.warning("FHE binary exists but is not executable: " + binaryPath);
+                return;
+            }
+            
+            // Test if the binary can actually run by executing it without args (should show usage)
+            try {
+                Process process = new ProcessBuilder(binaryPath).start();
+                
+                // Capture stdout and stderr
+                String stdout = new String(process.getInputStream().readAllBytes());
+                String stderr = new String(process.getErrorStream().readAllBytes());
+                
+                int exitCode = process.waitFor();
+                
+                logger.info("FHE binary " + binaryPath + " test run completed with exit code: " + exitCode);
+                if (!stdout.isEmpty()) {
+                    logger.info("FHE binary stdout: " + stdout.trim());
+                }
+                if (!stderr.isEmpty()) {
+                    logger.info("FHE binary stderr: " + stderr.trim());
+                }
+            } catch (IOException | InterruptedException e) {
+                logger.warning("FHE binary test run failed: " + e.getMessage());
+            }
+        }
+
         public static List<PlatformConfig.Entry> defaultPlatformConfigs() {
+            // Check FHE binary availability on startup
+            // checkBfvBinary();
+            
             var list = new ArrayList<PlatformConfig.Entry>();
 
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_COUNT_FIELDS, "udi,hospital,manufacturer,model,firmware_version,device_type,category,speciality"));
@@ -97,20 +139,21 @@ public class ConfigDefaults {
             // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "bfv"));
             
             // Uncomment to use Paillier instead
-            list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_ACTIVE, "true"));
-            var api = PaillierTTPAPI.getInstance(EncryptionDefaults.TTP_ADDRESS);
-            try {
-                var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
-                list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
-                list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION, key.getVersion())); // CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION = 15
-            } catch (IOException | InterruptedException e) {
-                list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
-                logger.warning("Could not get encryption key, defaulting to none");
-            }
+            // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_ACTIVE, "true"));
+            // var api = PaillierTTPAPI.getInstance(EncryptionDefaults.TTP_ADDRESS);
+            // try {
+            //     var key = api.encryptionKey(EncryptionDefaults.BIT_LENGTH);
+            //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "paillier"));
+            //     list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_PUBLIC_KEY, key.getEncryptionKey()));
+            //     list.add(entry(PlatformConfig.Config.CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION, key.getVersion())); // CONFIG_FEATURE_QUERY_ENCRYPTION_KEY_VERSION = 15
+            // } catch (IOException | InterruptedException e) {
+            //     list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
+            //     logger.warning("Could not get encryption key, defaulting to none");
+            // }
             
             // Uncomment to disable encryption
-            // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
+            list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_ACTIVE, "false"));
+            list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "none"));
 
             return list;
         }
