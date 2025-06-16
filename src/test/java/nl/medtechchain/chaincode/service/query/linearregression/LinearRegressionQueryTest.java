@@ -138,6 +138,70 @@ class LinearRegressionQueryTest {
         assertTrue(result.getLinearRegressionResult().getRSquared() > 0.5);
     }
 
+    /* 
+    @Test
+    void testLinearRegressionWithDifferentKeys() {
+        // Create test data with different keys
+        List<DeviceDataAsset> assets = new ArrayList<>();
+        
+        // Group 1 (key1): (1,2), (2,4)
+        assets.add(createDeviceDataAsset(1, 2, "key1"));
+        assets.add(createDeviceDataAsset(2, 4, "key1"));
+        
+        // Group 2 (key2): (3,5)
+        assets.add(createDeviceDataAsset(3, 5, "key2"));
+        
+        // Group 3 (key3): (4,4)
+        assets.add(createDeviceDataAsset(4, 4, "key3"));
+        
+        // Group 4 (key4): (5,6)
+        assets.add(createDeviceDataAsset(5, 6, "key4"));
+
+        // Create query
+        Query queryRequest = Query.newBuilder()
+                .setQueryType(Query.QueryType.LINEAR_REGRESSION)
+                .setTargetField("usage_hours")
+                .build();
+
+        // Process query
+        QueryResult result = linearRegressionQuery.process(queryRequest, assets);
+        QueryResult.LinearRegressionResult regressionResult = result.getLinearRegressionResult();
+
+        // Expected values:
+        // For key1 group (n=2):
+        //   sumX = 3, sumY = 6, sumXY = 10, sumXX = 5, sumYY = 20
+        // For key2 group (n=1):
+        //   sumX = 3, sumY = 5, sumXY = 15, sumXX = 9, sumYY = 25
+        // For key3 group (n=1):
+        //   sumX = 4, sumY = 4, sumXY = 16, sumXX = 16, sumYY = 16
+        // For key4 group (n=1):
+        //   sumX = 5, sumY = 6, sumXY = 30, sumXX = 25, sumYY = 36
+        //
+        // Total:
+        // n = 5
+        // sumX = 15
+        // sumY = 21
+        // sumXY = 73
+        // sumXX = 55
+        // sumYY = 97
+        //
+        // slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+        //       = (5 * 73 - 15 * 21) / (5 * 55 - 15 * 15)
+        //       = (365 - 315) / (275 - 225)
+        //       = 50 / 50
+        //       = 1.0
+        //
+        // intercept = (sumY - slope * sumX) / n
+        //          = (21 - 1.0 * 15) / 5
+        //          = 6 / 5
+        //          = 1.2
+
+        // Verify results
+        assertEquals(1.0, regressionResult.getSlope(), 0.0001, "Slope should be 1.0");
+        assertEquals(1.2, regressionResult.getIntercept(), 0.0001, "Intercept should be 1.2");
+        assertTrue(regressionResult.getRSquared() > 0.5, "R-squared should be positive");
+    }
+*/
     private DeviceDataAsset createDeviceDataAsset(long timestamp, int usageHours) {
         return createDeviceDataAsset(timestamp, usageHours, "v1");
     }
