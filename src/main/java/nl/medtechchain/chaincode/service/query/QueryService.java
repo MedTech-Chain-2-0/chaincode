@@ -7,6 +7,7 @@ import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
 import nl.medtechchain.chaincode.service.query.count.CountQuery;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
 import nl.medtechchain.chaincode.service.query.sum.SumQuery;
+import nl.medtechchain.chaincode.service.query.standarddeviation.STDQuery;
 import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCountQuery;
 import nl.medtechchain.chaincode.service.query.histogram.HistogramQuery;
 import nl.medtechchain.proto.common.ChaincodeError;
@@ -18,6 +19,8 @@ import nl.medtechchain.proto.devicedata.MedicalSpeciality;
 import nl.medtechchain.proto.query.Filter;
 import nl.medtechchain.proto.query.Query;
 import nl.medtechchain.proto.query.QueryResult;
+import nl.medtechchain.proto.query.QueryResult.MeanAndStd;
+
 
 import java.util.List;
 import java.util.Optional;
@@ -224,7 +227,22 @@ public class QueryService {
     }
     
     public QueryResult std(Query query, List<DeviceDataAsset> assets) {
-        throw new UnsupportedOperationException("Std query not yet implemented with new architecture");
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP)
+            throw new IllegalStateException("cannot run STD over " + fieldType);
+
+        QueryResult result = new STDQuery(platformConfig).process(query, assets);
+
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            double noisyMean = noise.addNoise(result.getMeanStd().getMean(), 1, getEpsilon(), 0);
+            double noisyStd = noise.addNoise(result.getMeanStd().getStd(), 1, getEpsilon(), 0);
+            MeanAndStd meanAndStd = MeanAndStd.newBuilder().setMean(noisyMean).setStd(noisyStd).build();
+            result = QueryResult.newBuilder().setMeanStd(meanAndStd).build();
+        }
+
+        return result;
     }
     
     // helpers
