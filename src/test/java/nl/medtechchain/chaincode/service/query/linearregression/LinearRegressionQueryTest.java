@@ -138,70 +138,113 @@ class LinearRegressionQueryTest {
         assertTrue(result.getLinearRegressionResult().getRSquared() > 0.5);
     }
 
-    /* 
     @Test
-    void testLinearRegressionWithDifferentKeys() {
-        // Create test data with different keys
+    public void testLinearRegressionWithDifferentKeys() {
+        // Create test data with different key versions
         List<DeviceDataAsset> assets = new ArrayList<>();
         
-        // Group 1 (key1): (1,2), (2,4)
-        assets.add(createDeviceDataAsset(1, 2, "key1"));
-        assets.add(createDeviceDataAsset(2, 4, "key1"));
+        // Version 1 assets: y = 2x + 1
+        assets.add(createAsset(1, 3, "key1"));  // (1,3)
+        assets.add(createAsset(2, 5, "key1"));  // (2,5)
+        assets.add(createAsset(3, 7, "key1"));  // (3,7)
         
-        // Group 2 (key2): (3,5)
-        assets.add(createDeviceDataAsset(3, 5, "key2"));
-        
-        // Group 3 (key3): (4,4)
-        assets.add(createDeviceDataAsset(4, 4, "key3"));
-        
-        // Group 4 (key4): (5,6)
-        assets.add(createDeviceDataAsset(5, 6, "key4"));
+        // Version 2 assets: y = 2x + 2
+        assets.add(createAsset(4, 10, "key2")); // (4,10)
+        assets.add(createAsset(5, 12, "key2")); // (5,12)
+        assets.add(createAsset(6, 14, "key2")); // (6,14)
 
-        // Create query
-        Query queryRequest = Query.newBuilder()
-                .setQueryType(Query.QueryType.LINEAR_REGRESSION)
-                .setTargetField("usage_hours")
-                .build();
+        // Create and process query
+        Query query = Query.newBuilder()
+            .setTargetField("usage_hours")
+            .build();
 
-        // Process query
-        QueryResult result = linearRegressionQuery.process(queryRequest, assets);
-        QueryResult.LinearRegressionResult regressionResult = result.getLinearRegressionResult();
-
-        // Expected values:
-        // For key1 group (n=2):
-        //   sumX = 3, sumY = 6, sumXY = 10, sumXX = 5, sumYY = 20
-        // For key2 group (n=1):
-        //   sumX = 3, sumY = 5, sumXY = 15, sumXX = 9, sumYY = 25
-        // For key3 group (n=1):
-        //   sumX = 4, sumY = 4, sumXY = 16, sumXX = 16, sumYY = 16
-        // For key4 group (n=1):
-        //   sumX = 5, sumY = 6, sumXY = 30, sumXX = 25, sumYY = 36
-        //
-        // Total:
-        // n = 5
-        // sumX = 15
-        // sumY = 21
-        // sumXY = 73
-        // sumXX = 55
-        // sumYY = 97
-        //
-        // slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
-        //       = (5 * 73 - 15 * 21) / (5 * 55 - 15 * 15)
-        //       = (365 - 315) / (275 - 225)
-        //       = 50 / 50
-        //       = 1.0
-        //
-        // intercept = (sumY - slope * sumX) / n
-        //          = (21 - 1.0 * 15) / 5
-        //          = 6 / 5
-        //          = 1.2
+        QueryResult result = linearRegressionQuery.process(query, assets);
 
         // Verify results
-        assertEquals(1.0, regressionResult.getSlope(), 0.0001, "Slope should be 1.0");
-        assertEquals(1.2, regressionResult.getIntercept(), 0.0001, "Intercept should be 1.2");
-        assertTrue(regressionResult.getRSquared() > 0.5, "R-squared should be positive");
+        assertNotNull(result);
+        assertTrue(result.hasLinearRegressionResult());
+        
+        var regressionResult = result.getLinearRegressionResult();
+        
+        // Expected values:
+        // - For key1: y = 2x + 1 (3 points)
+        // - For key2: y = 2x + 2 (3 points)
+        // Weighted average: (3 * (2x + 1) + 3 * (2x + 2)) / 6 = 2x + 1.5
+        assertEquals(2.0, regressionResult.getSlope(), 0.001);
+        assertEquals(1.5, regressionResult.getIntercept(), 0.001);
+        assertTrue(regressionResult.getRSquared() > 0.99);
     }
-*/
+
+    private DeviceDataAsset createAsset(long timestamp, long value, String keyVersion) {
+        return DeviceDataAsset.newBuilder()
+            .setTimestamp(com.google.protobuf.Timestamp.newBuilder()
+                .setSeconds(timestamp)
+                .build())
+            .setKeyVersion(keyVersion)
+            .setDeviceData(DeviceDataAsset.DeviceData.newBuilder()
+                .setUsageHours(DeviceDataAsset.IntegerField.newBuilder()
+                    .setPlain(value)
+                    .build())
+                .build())
+            .build();
+    }
+
+    @Test
+    public void testLinearRegressionWithMixedEncryptedAndPlainValues() {
+        // Create test data with mixed encrypted and plain values
+        List<DeviceDataAsset> assets = new ArrayList<>();
+        
+        // Version 1: Mix of plain and encrypted values
+        assets.add(createAsset(1, 3, "key1", false));  // plain
+        assets.add(createAsset(2, 5, "key1", true));   // encrypted
+        assets.add(createAsset(3, 7, "key1", false));  // plain
+        
+        // Version 2: All encrypted values
+        assets.add(createAsset(4, 10, "key2", true));  // encrypted
+        assets.add(createAsset(5, 12, "key2", true));  // encrypted
+        assets.add(createAsset(6, 14, "key2", true));  // encrypted
+
+        // Create and process query
+        Query query = Query.newBuilder()
+            .setTargetField("usage_hours")
+            .build();
+
+        QueryResult result = linearRegressionQuery.process(query, assets);
+
+        // Verify results
+        assertNotNull(result);
+        assertTrue(result.hasLinearRegressionResult());
+        
+        var regressionResult = result.getLinearRegressionResult();
+        
+        // Expected values:
+        // - For key1: y = 2x + 1 (3 points)
+        // - For key2: y = 2x + 2 (3 points)
+        // Weighted average: (3 * (2x + 1) + 3 * (2x + 2)) / 6 = 2x + 1.5
+        assertEquals(2.0, regressionResult.getSlope(), 0.001);
+        assertEquals(1.5, regressionResult.getIntercept(), 0.001);
+        assertTrue(regressionResult.getRSquared() > 0.99);
+    }
+
+    private DeviceDataAsset createAsset(long timestamp, long value, String keyVersion, boolean encrypted) {
+        DeviceDataAsset.IntegerField.Builder fieldBuilder = DeviceDataAsset.IntegerField.newBuilder();
+        if (encrypted) {
+            fieldBuilder.setEncrypted(String.valueOf(value)); // Simulate encrypted value
+        } else {
+            fieldBuilder.setPlain(value);
+        }
+
+        return DeviceDataAsset.newBuilder()
+            .setTimestamp(com.google.protobuf.Timestamp.newBuilder()
+                .setSeconds(timestamp)
+                .build())
+            .setKeyVersion(keyVersion)
+            .setDeviceData(DeviceDataAsset.DeviceData.newBuilder()
+                .setUsageHours(fieldBuilder.build())
+                .build())
+            .build();
+    }
+
     private DeviceDataAsset createDeviceDataAsset(long timestamp, int usageHours) {
         return createDeviceDataAsset(timestamp, usageHours, "v1");
     }

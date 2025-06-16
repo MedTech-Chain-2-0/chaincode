@@ -18,16 +18,19 @@ public class LinearRegressionQuery extends QueryProcessor {
 
     @Override
     public QueryResult process(Query query, List<DeviceDataAsset> assets) {
-        if (assets.isEmpty()) {
+        if (assets == null || assets.isEmpty()) {
             return createEmptyResult();
         }
 
         var fieldDescriptor = getFieldDescriptor(query.getTargetField());
-        Map<String, List<DeviceDataAsset>> versionGroups = groupByVersion(assets);
-        
-        List<RegressionResult> versionResults = new ArrayList<>();
-        int totalPoints = 0;
+        if (fieldDescriptor == null) {
+            throw new IllegalArgumentException("Field descriptor is required");
+        }
 
+        // Group assets by version
+        Map<String, List<DeviceDataAsset>> versionGroups = groupByVersion(assets);
+
+        List<RegressionResult> versionResults = new ArrayList<>();
         for (Map.Entry<String, List<DeviceDataAsset>> entry : versionGroups.entrySet()) {
             String version = entry.getKey();
             List<DeviceDataAsset> versionAssets = entry.getValue();
@@ -41,7 +44,6 @@ public class LinearRegressionQuery extends QueryProcessor {
             RegressionResult result = processVersionGroup(versionAssets, fieldDescriptor, version);
             if (result != null) {
                 versionResults.add(result);
-                totalPoints += versionAssets.size();
             }
         }
 
@@ -50,24 +52,25 @@ public class LinearRegressionQuery extends QueryProcessor {
         }
 
         // Calculate weighted average of results based on number of points in each version
-        double totalWeightedSlope = 0;
-        double totalWeightedIntercept = 0;
-        double totalWeightedRSquared = 0;
+        double totalPoints = versionResults.stream().mapToInt(RegressionResult::getCount).sum();
+        double weightedSlope = 0;
+        double weightedIntercept = 0;
+        double weightedRSquared = 0;
 
         for (RegressionResult result : versionResults) {
-            double weight = (double) result.pointCount / totalPoints;
-            totalWeightedSlope += result.slope * weight;
-            totalWeightedIntercept += result.intercept * weight;
-            totalWeightedRSquared += result.rSquared * weight;
+            double weight = result.getCount() / totalPoints;
+            weightedSlope += result.getSlope() * weight;
+            weightedIntercept += result.getIntercept() * weight;
+            weightedRSquared += result.getRSquared() * weight;
         }
 
         return QueryResult.newBuilder()
-                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                        .setSlope(totalWeightedSlope)
-                        .setIntercept(totalWeightedIntercept)
-                        .setRSquared(totalWeightedRSquared)
-                        .build())
-                .build();
+            .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
+                .setSlope(weightedSlope)
+                .setIntercept(weightedIntercept)
+                .setRSquared(weightedRSquared)
+                .build())
+            .build();
     }
 
     private QueryResult createEmptyResult() {
@@ -163,124 +166,161 @@ public class LinearRegressionQuery extends QueryProcessor {
             return null;
         }
 
-        // Extract x values (timestamps) and y values
-        double[] xValues = new double[assets.size()];
-        double[] yValues = new double[assets.size()];
-        List<String> encryptedYValues = new ArrayList<>();
-        double plainYSum = 0;
-        int plainCount = 0;
-
-        for (int i = 0; i < assets.size(); i++) {
-            DeviceDataAsset asset = assets.get(i);
-            xValues[i] = asset.getTimestamp().getSeconds();
-
-            var fieldType = asset.getDeviceData().getField(fieldDescriptor);
-            FieldValueResult result;
-            if (fieldType instanceof DeviceDataAsset.IntegerField) {
-                result = processFieldValue((DeviceDataAsset.IntegerField) fieldType, plainYSum, plainCount, encryptedYValues, version);
-            } else if (fieldType instanceof DeviceDataAsset.TimestampField) {
-                result = processFieldValue((DeviceDataAsset.TimestampField) fieldType, plainYSum, plainCount, encryptedYValues, version);
-            } else {
-                continue;
-            }
-            plainYSum = result.plainYSum;
-            plainCount = result.plainCount;
-            encryptedYValues = result.encryptedYValues;
-            yValues[i] = getYValue(asset, fieldDescriptor, version);
-        }
-
-        // Handle encrypted values if any
-        if (!encryptedYValues.isEmpty()) {
-            String encryptedSum;
-            if (encryptedYValues.size() == 1) {
-                encryptedSum = encryptedYValues.get(0);
-            } else {
-                encryptedSum = encryptionService.homomorphicAdd(encryptedYValues, version);
-            }
-            double decryptedSum = encryptionService.decryptLong(encryptedSum, version);
-            plainYSum += decryptedSum;
-            plainCount += encryptedYValues.size();
-        }
-
-        if (plainCount < 2) {
-            return null;
-        }
-
-        // Calculate sums for regression
+        // Initialize sums for regression calculation
         double sumX = 0;
         double sumY = 0;
         double sumXY = 0;
-        double sumXX = 0;
-        double sumYY = 0;
+        double sumX2 = 0;
+        double sumY2 = 0;
+        int count = 0;
 
-        for (int i = 0; i < assets.size(); i++) {
-            double x = xValues[i];
-            double y = yValues[i];
-            sumX += x;
-            sumY += y;
-            sumXY += x * y;
-            sumXX += x * x;
-            sumYY += y * y;
+        // Process each asset in the version group
+        for (DeviceDataAsset asset : assets) {
+            double x = asset.getTimestamp().getSeconds();
+            var fieldType = asset.getDeviceData().getField(fieldDescriptor);
+            double y = 0;
+            boolean validValue = false;
+
+            if (fieldType instanceof DeviceDataAsset.IntegerField) {
+                var fieldValue = (DeviceDataAsset.IntegerField) fieldType;
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        y = fieldValue.getPlain();
+                        validValue = true;
+                        break;
+                    case ENCRYPTED:
+                        if (encryptionService == null) {
+                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
+                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
+                        }
+                        y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                        validValue = true;
+                        break;
+                    case FIELD_NOT_SET:
+                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                        break;
+                }
+            } else if (fieldType instanceof DeviceDataAsset.TimestampField) {
+                var fieldValue = (DeviceDataAsset.TimestampField) fieldType;
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        y = fieldValue.getPlain().getSeconds();
+                        validValue = true;
+                        break;
+                    case ENCRYPTED:
+                        if (encryptionService == null) {
+                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
+                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
+                        }
+                        y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                        validValue = true;
+                        break;
+                    case FIELD_NOT_SET:
+                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                        break;
+                }
+            }
+
+            if (validValue) {
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumX2 += x * x;
+                sumY2 += y * y;
+                count++;
+            }
         }
 
-        // Calculate slope and intercept using the correct formulas
-        double n = plainCount;
-        double denominator = (n * sumXX - sumX * sumX);
-        double slope = denominator == 0 ? 0 : (n * sumXY - sumX * sumY) / denominator;
-        double intercept = (sumY - slope * sumX) / n;
+        if (count < 2) {
+            return null;
+        }
+
+        // Calculate slope and intercept using the standard formulas
+        double slope = (count * sumXY - sumX * sumY) / (count * sumX2 - sumX * sumX);
+        double intercept = (sumY - slope * sumX) / count;
 
         // Calculate R-squared
-        double meanY = sumY / n;
-        double ssTotal = sumYY - (sumY * sumY) / n;
+        double meanY = sumY / count;
+        double ssTotal = sumY2 - 2 * meanY * sumY + count * meanY * meanY;
         double ssResidual = 0;
-        for (int i = 0; i < assets.size(); i++) {
-            double x = xValues[i];
-            double y = yValues[i];
-            double predictedY = slope * x + intercept;
-            ssResidual += (y - predictedY) * (y - predictedY);
+
+        // Calculate residuals for R-squared
+        for (DeviceDataAsset asset : assets) {
+            double x = asset.getTimestamp().getSeconds();
+            var fieldType = asset.getDeviceData().getField(fieldDescriptor);
+            double y = 0;
+            boolean validValue = false;
+
+            if (fieldType instanceof DeviceDataAsset.IntegerField) {
+                var fieldValue = (DeviceDataAsset.IntegerField) fieldType;
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        y = fieldValue.getPlain();
+                        validValue = true;
+                        break;
+                    case ENCRYPTED:
+                        if (encryptionService != null) {
+                            y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                            validValue = true;
+                        }
+                        break;
+                }
+            } else if (fieldType instanceof DeviceDataAsset.TimestampField) {
+                var fieldValue = (DeviceDataAsset.TimestampField) fieldType;
+                switch (fieldValue.getFieldCase()) {
+                    case PLAIN:
+                        y = fieldValue.getPlain().getSeconds();
+                        validValue = true;
+                        break;
+                    case ENCRYPTED:
+                        if (encryptionService != null) {
+                            y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                            validValue = true;
+                        }
+                        break;
+                }
+            }
+
+            if (validValue) {
+                double predictedY = slope * x + intercept;
+                ssResidual += (y - predictedY) * (y - predictedY);
+            }
         }
 
-        double rSquared = ssTotal == 0 ? 0 : 1 - (ssResidual / ssTotal);
-        return new RegressionResult(slope, intercept, rSquared, plainCount);
-    }
+        double rSquared = 1.0 - (ssResidual / ssTotal);
+        logger.fine("Regression results for version " + version + ": slope=" + slope + 
+                   ", intercept=" + intercept + ", rSquared=" + rSquared + ", count=" + count);
 
-    private double getYValue(DeviceDataAsset asset, Descriptors.FieldDescriptor fieldDescriptor, String version) {
-        var fieldType = asset.getDeviceData().getField(fieldDescriptor);
-        if (fieldType instanceof DeviceDataAsset.IntegerField) {
-            var fieldValue = (DeviceDataAsset.IntegerField) fieldType;
-            switch (fieldValue.getFieldCase()) {
-                case PLAIN:
-                    return fieldValue.getPlain();
-                case ENCRYPTED:
-                    return encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                default:
-                    return 0;
-            }
-        } else if (fieldType instanceof DeviceDataAsset.TimestampField) {
-            var fieldValue = (DeviceDataAsset.TimestampField) fieldType;
-            switch (fieldValue.getFieldCase()) {
-                case PLAIN:
-                    return fieldValue.getPlain().getSeconds();
-                case ENCRYPTED:
-                    return encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                default:
-                    return 0;
-            }
-        }
-        return 0;
+        return new RegressionResult(slope, intercept, rSquared, count);
     }
 
     private static class RegressionResult {
-        final double slope;
-        final double intercept;
-        final double rSquared;
-        final int pointCount;
+        private final double slope;
+        private final double intercept;
+        private final double rSquared;
+        private final int count;
 
-        RegressionResult(double slope, double intercept, double rSquared, int pointCount) {
+        public RegressionResult(double slope, double intercept, double rSquared, int count) {
             this.slope = slope;
             this.intercept = intercept;
             this.rSquared = rSquared;
-            this.pointCount = pointCount;
+            this.count = count;
+        }
+
+        public double getSlope() {
+            return slope;
+        }
+
+        public double getIntercept() {
+            return intercept;
+        }
+
+        public double getRSquared() {
+            return rSquared;
+        }
+
+        public int getCount() {
+            return count;
         }
     }
 } 
