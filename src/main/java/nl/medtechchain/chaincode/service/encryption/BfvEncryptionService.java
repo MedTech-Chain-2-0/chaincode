@@ -1,5 +1,6 @@
 package nl.medtechchain.chaincode.service.encryption;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -77,17 +78,39 @@ public class BfvEncryptionService implements EncryptionService {
         if (ciphertexts == null || ciphertexts.isEmpty()) {
             throw new IllegalArgumentException("Ciphertext list cannot be null or empty");
         }
-        
         if (ciphertexts.size() == 1) {
             return ciphertexts.get(0);
         }
-        
         try {
-            return cli.addMany(ciphertexts);
+            return reduceAdd(ciphertexts);
         } catch (Exception e) {
             logger.severe("BFV homomorphic addition failed: " + e.getMessage());
             throw new RuntimeException("BFV homomorphic addition failed", e);
         }
+    }
+    
+    /**
+     * Recursively reduces a list of ciphertexts by adding in chunks of up to 10,
+     * returning a single aggregated ciphertext.
+     */
+    private String reduceAdd(List<String> cts) throws Exception {
+        if (cts.size() == 1) {
+            return cts.get(0);
+        }
+        if (cts.size() <= 10) {
+            return cli.addMany(cts);
+        }
+        List<String> next = new ArrayList<>();
+        for (int i = 0; i < cts.size(); i += 10) {
+            int end = Math.min(i + 10, cts.size());
+            List<String> chunk = cts.subList(i, end);
+            if (chunk.size() == 1) {
+                next.add(chunk.get(0));
+            } else {
+                next.add(cli.addMany(chunk));
+            }
+        }
+        return reduceAdd(next);
     }
     
     @Override
@@ -97,4 +120,4 @@ public class BfvEncryptionService implements EncryptionService {
             "The TTP only supports addition operations."
         );
     }
-} 
+}
