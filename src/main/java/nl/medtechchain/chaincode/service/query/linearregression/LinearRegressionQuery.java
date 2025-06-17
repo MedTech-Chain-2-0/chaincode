@@ -22,9 +22,11 @@ public class LinearRegressionQuery extends QueryProcessor {
             return createEmptyResult();
         }
 
-        var fieldDescriptor = getFieldDescriptor(query.getTargetField());
-        if (fieldDescriptor == null) {
-            throw new IllegalArgumentException("Field descriptor is required");
+        var xFieldDescriptor = getFieldDescriptor(query.getXTargetField());
+        var yFieldDescriptor = getFieldDescriptor(query.getYTargetField());
+
+        if (xFieldDescriptor == null || yFieldDescriptor == null) {
+            throw new IllegalArgumentException("Field descriptor is null");
         }
 
         // Group assets by version
@@ -34,14 +36,14 @@ public class LinearRegressionQuery extends QueryProcessor {
         for (Map.Entry<String, List<DeviceDataAsset>> entry : versionGroups.entrySet()) {
             String version = entry.getKey();
             List<DeviceDataAsset> versionAssets = entry.getValue();
-            
+
             if (versionAssets.size() < 2) {
                 logger.fine("Skipping version " + version + " with insufficient points: " + versionAssets.size());
                 continue;
             }
 
             logger.fine("Processing regression for " + versionAssets.size() + " assets with version: " + version);
-            RegressionResult result = processVersionGroup(versionAssets, fieldDescriptor, version);
+            RegressionResult result = processVersionGroup(versionAssets, xFieldDescriptor, yFieldDescriptor, version);
             if (result != null) {
                 versionResults.add(result);
             }
@@ -51,7 +53,8 @@ public class LinearRegressionQuery extends QueryProcessor {
             return createEmptyResult();
         }
 
-        // Calculate weighted average of results based on number of points in each version
+        // Calculate weighted average of results based on number of points in each
+        // version
         double totalPoints = versionResults.stream().mapToInt(RegressionResult::getCount).sum();
         double weightedSlope = 0;
         double weightedIntercept = 0;
@@ -65,12 +68,12 @@ public class LinearRegressionQuery extends QueryProcessor {
         }
 
         return QueryResult.newBuilder()
-            .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                .setSlope(weightedSlope)
-                .setIntercept(weightedIntercept)
-                .setRSquared(weightedRSquared)
-                .build())
-            .build();
+                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
+                        .setSlope(weightedSlope)
+                        .setIntercept(weightedIntercept)
+                        .setRSquared(weightedRSquared)
+                        .build())
+                .build();
     }
 
     private QueryResult createEmptyResult() {
@@ -83,215 +86,180 @@ public class LinearRegressionQuery extends QueryProcessor {
                 .build();
     }
 
-    private static class FieldValueResult {
-        final double plainYSum;
-        final int plainCount;
-        final List<String> encryptedYValues;
+    private RegressionResult processVersionGroup(
+            List<DeviceDataAsset> assets,
+            // x field assumed by design to always be a timestamp
+            Descriptors.FieldDescriptor xDesc,
+            // y field assumed by design to always be an integer
+            Descriptors.FieldDescriptor yDesc,
+            String version) {
 
-        FieldValueResult(double plainYSum, int plainCount, List<String> encryptedYValues) {
-            this.plainYSum = plainYSum;
-            this.plainCount = plainCount;
-            this.encryptedYValues = encryptedYValues;
-        }
-    }
-
-    private FieldValueResult processFieldValue(DeviceDataAsset.IntegerField fieldValue, 
-                                            double plainYSum, 
-                                            int plainCount, 
-                                            List<String> encryptedYValues, 
-                                            String version) {
-        switch (fieldValue.getFieldCase()) {
-            case PLAIN:
-                return new FieldValueResult(plainYSum + fieldValue.getPlain(), plainCount + 1, encryptedYValues);
-            case ENCRYPTED:
-                if (encryptionService == null) {
-                    throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
-                        "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
-                }
-                if (encryptionService.isHomomorphic()) {
-                    encryptedYValues.add(fieldValue.getEncrypted());
-                    return new FieldValueResult(plainYSum, plainCount, encryptedYValues);
-                } else {
-                    return new FieldValueResult(
-                        plainYSum + encryptionService.decryptLong(fieldValue.getEncrypted(), version),
-                        plainCount + 1,
-                        encryptedYValues
-                    );
-                }
-            case FIELD_NOT_SET:
-                logger.fine("Skipping asset with no value for field");
-                return new FieldValueResult(plainYSum, plainCount, encryptedYValues);
-        }
-        return new FieldValueResult(plainYSum, plainCount, encryptedYValues);
-    }
-
-    private FieldValueResult processFieldValue(DeviceDataAsset.TimestampField fieldValue, 
-                                            double plainYSum, 
-                                            int plainCount, 
-                                            List<String> encryptedYValues, 
-                                            String version) {
-        switch (fieldValue.getFieldCase()) {
-            case PLAIN:
-                return new FieldValueResult(
-                    plainYSum + fieldValue.getPlain().getSeconds(),
-                    plainCount + 1,
-                    encryptedYValues
-                );
-            case ENCRYPTED:
-                if (encryptionService == null) {
-                    throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
-                        "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
-                }
-                if (encryptionService.isHomomorphic()) {
-                    encryptedYValues.add(fieldValue.getEncrypted());
-                    return new FieldValueResult(plainYSum, plainCount, encryptedYValues);
-                } else {
-                    return new FieldValueResult(
-                        plainYSum + encryptionService.decryptLong(fieldValue.getEncrypted(), version),
-                        plainCount + 1,
-                        encryptedYValues
-                    );
-                }
-            case FIELD_NOT_SET:
-                logger.fine("Skipping asset with no value for field");
-                return new FieldValueResult(plainYSum, plainCount, encryptedYValues);
-        }
-        return new FieldValueResult(plainYSum, plainCount, encryptedYValues);
-    }
-
-    private RegressionResult processVersionGroup(List<DeviceDataAsset> assets, 
-                                               Descriptors.FieldDescriptor fieldDescriptor, 
-                                               String version) {
-        if (assets.size() < 2) {
-            return null;
-        }
-
-        // Initialize sums for regression calculation
-        double sumX = 0;
-        double sumY = 0;
-        double sumXY = 0;
-        double sumX2 = 0;
-        double sumY2 = 0;
+        double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
         int count = 0;
+        boolean homomorphic = encryptionService != null && encryptionService.isHomomorphic();
+        boolean canMultiply = homomorphic && encryptionService.supportsMultiplication();
 
-        // Process each asset in the version group
+        // ciphertext buckets – only used when the scheme is homomorphic
+        List<String> encXList = new ArrayList<>();
+        List<String> encYList = new ArrayList<>();
+        List<String> encXYList = new ArrayList<>();
+        List<String> encX2List = new ArrayList<>();
+        List<String> encY2List = new ArrayList<>();
+
         for (DeviceDataAsset asset : assets) {
-            double x = asset.getTimestamp().getSeconds();
-            var fieldType = asset.getDeviceData().getField(fieldDescriptor);
-            double y = 0;
-            boolean validValue = false;
+            // reminder: always a timestamp!
+            DeviceDataAsset.TimestampField xField = (DeviceDataAsset.TimestampField) asset.getDeviceData()
+                    .getField(xDesc);
 
-            if (fieldType instanceof DeviceDataAsset.IntegerField) {
-                var fieldValue = (DeviceDataAsset.IntegerField) fieldType;
-                switch (fieldValue.getFieldCase()) {
+            Double xPlain = null;
+            String xEnc = null;
+            if (xField != null)
+                switch (xField.getFieldCase()) {
                     case PLAIN:
-                        y = fieldValue.getPlain();
-                        validValue = true;
+                        xPlain = (double) xField.getPlain().getSeconds();
                         break;
                     case ENCRYPTED:
-                        if (encryptionService == null) {
-                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
-                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
-                        }
-                        y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                        validValue = true;
+                        if (homomorphic)
+                            xEnc = xField.getEncrypted();
+                        else
+                            xPlain = (double) encryptionService.decryptLong(xField.getEncrypted(), version);
                         break;
-                    case FIELD_NOT_SET:
-                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                    default:
+                        logger.fine("Skipping asset with no value for case " + xField.getFieldCase());
                         break;
                 }
-            } else if (fieldType instanceof DeviceDataAsset.TimestampField) {
-                var fieldValue = (DeviceDataAsset.TimestampField) fieldType;
-                switch (fieldValue.getFieldCase()) {
+
+            DeviceDataAsset.IntegerField yField = (DeviceDataAsset.IntegerField) asset.getDeviceData().getField(yDesc);
+
+            Double yPlain = null;
+            String yEnc = null;
+            if (yField != null)
+                switch (yField.getFieldCase()) {
                     case PLAIN:
-                        y = fieldValue.getPlain().getSeconds();
-                        validValue = true;
+                        yPlain = (double) yField.getPlain();
                         break;
                     case ENCRYPTED:
-                        if (encryptionService == null) {
-                            throw new IllegalStateException("Found encrypted data but no encryption service configured. " +
-                                "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
-                        }
-                        y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                        validValue = true;
+                        if (homomorphic)
+                            yEnc = yField.getEncrypted();
+                        else
+                            yPlain = (double) encryptionService.decryptLong(yField.getEncrypted(), version);
                         break;
-                    case FIELD_NOT_SET:
-                        logger.fine("Skipping asset with no value for field: " + fieldDescriptor.getName());
+                    default:
+                        logger.fine("Skipping asset with no value for case " + yField.getFieldCase());
                         break;
+                }
+
+            // something weird happened
+            if ((xPlain == null && xEnc == null) || (yPlain == null && yEnc == null))
+                continue;
+            count++;
+
+            // both plaintext
+            if (xPlain != null && yPlain != null) {
+                sumX += xPlain;
+                sumY += yPlain;
+                sumXY += xPlain * yPlain;
+                sumX2 += xPlain * xPlain;
+                sumY2 += yPlain * yPlain;
+
+            }
+            // both encrypted
+            else if (homomorphic && xEnc != null && yEnc != null) {
+                
+                if (canMultiply) {
+                    encXList.add(xEnc);
+                    encYList.add(yEnc);
+                    encXYList.add(encryptionService.homomorphicMultiply(xEnc, yEnc, version));
+                    encX2List.add(encryptionService.homomorphicMultiply(xEnc, xEnc, version));
+                    encY2List.add(encryptionService.homomorphicMultiply(yEnc, yEnc, version));
+                } else {
+                    long x = encryptionService.decryptLong(xEnc, version);
+                    long y = encryptionService.decryptLong(yEnc, version);
+                    sumX += x;
+                    sumY += y;
+                    sumXY += (double) x * y;
+                    sumX2 += (double) x * x;
+                    sumY2 += (double) y * y;
                 }
             }
+            // one of the pair is encrypted – decrypt it
+            else {
+                if (xPlain == null)
+                    xPlain = (double) encryptionService.decryptLong(xEnc, version);
+                if (yPlain == null)
+                    yPlain = (double) encryptionService.decryptLong(yEnc, version);
 
-            if (validValue) {
-                sumX += x;
-                sumY += y;
-                sumXY += x * y;
-                sumX2 += x * x;
-                sumY2 += y * y;
-                count++;
+                sumX += xPlain;
+                sumY += yPlain;
+                sumXY += xPlain * yPlain;
+                sumX2 += xPlain * xPlain;
+                sumY2 += yPlain * yPlain;
+            }
+        } // end of the for loop processing assets, now we do maths
+
+        // MATHS
+        // homomorphic reduction of accumulated ciphertexts
+        if (homomorphic) {
+            //  X values
+            if (!encXList.isEmpty()) {
+                String sumEncX = encXList.size() == 1 ? encXList.get(0)
+                        : encryptionService.homomorphicAdd(encXList, version);
+                sumX += encryptionService.decryptLong(sumEncX, version);
+            }
+
+            // Y values
+            if (!encYList.isEmpty()) {
+                String sumEncY = encYList.size() == 1 ? encYList.get(0)
+                        : encryptionService.homomorphicAdd(encYList, version);
+                sumY += encryptionService.decryptLong(sumEncY, version);
+            }
+
+            // x*y values
+            if (!encXYList.isEmpty()) {
+                String sumEncXY = encXYList.size() == 1 ? encXYList.get(0)
+                        : encryptionService.homomorphicAdd(encXYList, version);
+                sumXY += encryptionService.decryptLong(sumEncXY, version);
+            }
+
+            // x*x values
+            if (!encX2List.isEmpty()) {
+                String sumEncX2 = encX2List.size() == 1 ? encX2List.get(0)
+                        : encryptionService.homomorphicAdd(encX2List, version);
+                sumX2 += encryptionService.decryptLong(sumEncX2, version);
+            }
+
+            // y*y values
+            if (!encY2List.isEmpty()) {
+                String sumEncY2 = encY2List.size() == 1 ? encY2List.get(0)
+                        : encryptionService.homomorphicAdd(encY2List, version);
+                sumY2 += encryptionService.decryptLong(sumEncY2, version);
             }
         }
 
-        if (count < 2) {
-            return null;
-        }
+        if (count < 2)
+            return new RegressionResult(0, 0, 0, 0);
 
-        // Calculate slope and intercept using the standard formulas
+        // slope and intercept
         double slope = (count * sumXY - sumX * sumY) / (count * sumX2 - sumX * sumX);
         double intercept = (sumY - slope * sumX) / count;
 
-        // Calculate R-squared
+        // r squared
         double meanY = sumY / count;
-        double ssTotal = sumY2 - 2 * meanY * sumY + count * meanY * meanY;
-        double ssResidual = 0;
+        double ssTot = sumY2 - 2 * meanY * sumY + count * meanY * meanY;
+        // double ssRes = (count * sumXY - 2 * sumX * sumY + count * slope * slope * sumX2
+        //         + count * intercept * intercept + 2 * slope * intercept * sumX
+        //         - 2 * intercept * sumY);
 
-        // Calculate residuals for R-squared
-        for (DeviceDataAsset asset : assets) {
-            double x = asset.getTimestamp().getSeconds();
-            var fieldType = asset.getDeviceData().getField(fieldDescriptor);
-            double y = 0;
-            boolean validValue = false;
+        double ssRes = sumY2
+             - 2 * slope * sumXY
+             - 2 * intercept * sumY
+             + slope * slope * sumX2
+             + 2 * slope * intercept * sumX
+             + intercept * intercept * count;
 
-            if (fieldType instanceof DeviceDataAsset.IntegerField) {
-                var fieldValue = (DeviceDataAsset.IntegerField) fieldType;
-                switch (fieldValue.getFieldCase()) {
-                    case PLAIN:
-                        y = fieldValue.getPlain();
-                        validValue = true;
-                        break;
-                    case ENCRYPTED:
-                        if (encryptionService != null) {
-                            y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                            validValue = true;
-                        }
-                        break;
-                }
-            } else if (fieldType instanceof DeviceDataAsset.TimestampField) {
-                var fieldValue = (DeviceDataAsset.TimestampField) fieldType;
-                switch (fieldValue.getFieldCase()) {
-                    case PLAIN:
-                        y = fieldValue.getPlain().getSeconds();
-                        validValue = true;
-                        break;
-                    case ENCRYPTED:
-                        if (encryptionService != null) {
-                            y = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                            validValue = true;
-                        }
-                        break;
-                }
-            }
+        double r2 = 1.0 - (ssRes / ssTot);
 
-            if (validValue) {
-                double predictedY = slope * x + intercept;
-                ssResidual += (y - predictedY) * (y - predictedY);
-            }
-        }
-
-        double rSquared = 1.0 - (ssResidual / ssTotal);
-        logger.fine("Regression results for version " + version + ": slope=" + slope + 
-                   ", intercept=" + intercept + ", rSquared=" + rSquared + ", count=" + count);
-
-        return new RegressionResult(slope, intercept, rSquared, count);
+        return new RegressionResult(slope, intercept, r2, count);
     }
 
     private static class RegressionResult {
@@ -323,4 +291,4 @@ public class LinearRegressionQuery extends QueryProcessor {
             return count;
         }
     }
-} 
+}

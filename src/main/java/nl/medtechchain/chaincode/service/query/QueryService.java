@@ -81,7 +81,7 @@ public class QueryService {
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_STD_FIELDS).orElse("");
                 break;
             case LINEAR_REGRESSION:
-                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS).orElse("");
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS_X).orElse("") + "," + ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS_Y).orElse("");
                 break;
         }
 

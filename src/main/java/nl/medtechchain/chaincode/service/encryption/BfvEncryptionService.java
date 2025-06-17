@@ -73,11 +73,9 @@ public class BfvEncryptionService implements EncryptionService {
         if (ciphertexts == null || ciphertexts.isEmpty()) {
             throw new IllegalArgumentException("Ciphertext list cannot be null or empty");
         }
-        
         if (ciphertexts.size() == 1) {
             return ciphertexts.get(0);
         }
-        
         try {
             return api.addAll(ciphertexts);
         } catch (Exception e) {
