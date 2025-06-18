@@ -212,7 +212,9 @@ public class STDQuery extends QueryProcessor {
                                 encryptedValues.add(fieldValue.getEncrypted());
                             }
                             else {
-                                throw new IllegalStateException("the homomorphic encryption scheme of the data field is not recognized in chaincode");
+                                long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                                plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                                // throw new IllegalStateException("the homomorphic encryption scheme of the data field is not recognized in chaincode");
                             }
                         } else {
                             // Non-homomorphic: decrypt and add to plain sum
@@ -248,7 +250,9 @@ public class STDQuery extends QueryProcessor {
                                 encryptedValues.add(fieldValue.getEncrypted());
                             }
                             else {
-                                throw new IllegalStateException("the homomorphic encryption scheme of the data field is not recognized in chaincode");
+                                long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                                plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                                // throw new IllegalStateException("the homomorphic encryption scheme of the data field is not recognized in chaincode");
                             }
                             
                         } else {
