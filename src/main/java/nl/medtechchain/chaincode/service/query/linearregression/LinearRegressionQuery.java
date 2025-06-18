@@ -11,6 +11,7 @@ import java.util.logging.Logger;
 
 public class LinearRegressionQuery extends QueryProcessor {
     private static final Logger logger = Logger.getLogger(LinearRegressionQuery.class.getName());
+    private static final double SECONDS_PER_DAY = 86400;
 
     public LinearRegressionQuery(PlatformConfig platformConfig) {
         super(platformConfig);
@@ -69,7 +70,7 @@ public class LinearRegressionQuery extends QueryProcessor {
 
         return QueryResult.newBuilder()
                 .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                        .setSlope(weightedSlope)
+                        .setSlope(weightedSlope * SECONDS_PER_DAY) // converts the slope to reflect change per day, and not per second
                         .setIntercept(weightedIntercept)
                         .setRSquared(weightedRSquared)
                         .build())

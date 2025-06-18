@@ -276,19 +276,19 @@ public class QueryService {
 
         QueryResult result = new LinearRegressionQuery(platformConfig).process(query, assets);
 
-        if (mechanismType == MechanismType.LAPLACE) {
-            var noise = new LaplaceNoise();
-            var regression = result.getLinearRegressionResult();
-            double noisySlope = noise.addNoise(regression.getSlope(), 1, getEpsilon(), 0);
-            double noisyIntercept = noise.addNoise(regression.getIntercept(), 1, getEpsilon(), 0);
-            result = QueryResult.newBuilder()
-                .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                    .setSlope(noisySlope)
-                    .setIntercept(noisyIntercept)
-                    .setRSquared(regression.getRSquared())
-                    .build())
-                .build();
-        }
+        // if (mechanismType == MechanismType.LAPLACE) {
+        //     var noise = new LaplaceNoise();
+        //     var regression = result.getLinearRegressionResult();
+        //     double noisySlope = noise.addNoise(regression.getSlope(), 1, getEpsilon(), 0);
+        //     double noisyIntercept = noise.addNoise(regression.getIntercept(), 1, getEpsilon(), 0);
+        //     result = QueryResult.newBuilder()
+        //         .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
+        //             .setSlope(noisySlope)
+        //             .setIntercept(noisyIntercept)
+        //             .setRSquared(regression.getRSquared())
+        //             .build())
+        //         .build();
+        // }
 
         return result;
     }
