@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import nl.medtechchain.chaincode.service.encryption.BfvEncryptionService;
+import nl.medtechchain.chaincode.service.encryption.PaillierEncryptionService;
 import nl.medtechchain.proto.devicedata.DeviceCategory;
  
 
@@ -202,9 +204,16 @@ public class STDQuery extends QueryProcessor {
                                 "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
                         }
                         if (encryptionService.isHomomorphic()) {
-                            // TODO: make BFV scheme handle it fully homomorphically
-                            long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                            plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                           if (encryptionService instanceof PaillierEncryptionService) {
+                                long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                                plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                            } 
+                            else if (encryptionService instanceof BfvEncryptionService) {
+                                encryptedValues.add(fieldValue.getEncrypted());
+                            }
+                            else {
+                                throw new IllegalStateException("the homomorphic encryption scheme of the data field is not recognized in chaincode");
+                            }
                         } else {
                             // Non-homomorphic: decrypt and add to plain sum
                             long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
@@ -231,9 +240,17 @@ public class STDQuery extends QueryProcessor {
                                 "Set CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME to 'paillier' or 'bfv'.");
                         }
                         if (encryptionService.isHomomorphic()) {
-                            // TODO: make BFV scheme handle it fully homomorphically
-                            long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
-                            plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                            if (encryptionService instanceof PaillierEncryptionService) {
+                                long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
+                                plainStd += ((double) decrypted - mean) * (decrypted - mean);
+                            } 
+                            else if (encryptionService instanceof BfvEncryptionService) {
+                                encryptedValues.add(fieldValue.getEncrypted());
+                            }
+                            else {
+                                throw new IllegalStateException("the homomorphic encryption scheme of the data field is not recognized in chaincode");
+                            }
+                            
                         } else {
                             // Non-homomorphic: decrypt and add to plain sum
                             long decrypted = encryptionService.decryptLong(fieldValue.getEncrypted(), version);
@@ -255,21 +272,25 @@ public class STDQuery extends QueryProcessor {
         // TODO: If BFV implemented
         // mean should be encrypted with BFV
         // homomorphic subtraction and multiplication methods should be implemented
-        // // no key versioning is used
-        // if (!encryptedValues.isEmpty()) {
-        //     String encryptedSTD;
+        // no key versioning is used
+        if (!encryptedValues.isEmpty() && encryptionService instanceof BfvEncryptionService) {
+            BfvEncryptionService bfvService = (BfvEncryptionService) encryptionService;
+            String encryptedSTD;
             
-        //     encryptedSTD = encryptedValues.get(0);
-        //     // Use homomorphic addition to sum all encrypted values
-        //     for (int i = 1; i < encryptedValues.size(); i++) {
-        //         String ciphertext = encryptedValues.get(i);
-        //         String subtraction = encryptionService.homomorphicSub(ciphertext, meanEncrypted);
-        //         String squared = encryptionService.homomorphicMultiply(subtraction, subtraction);
-        //         encryptedSTD += encryptionService.homomomorphicAdd(squared, encryptedSTD);
-        //     }            
-        //     // Decrypt the final sum and add to plain sum
-        //     plainStd += encryptionService.decryptLong(encryptedSum);
-        // }
+            // calculates the first square of difference to be able to add
+            encryptedSTD = encryptedValues.get(0);
+            encryptedSTD = bfvService.homomorphicSubWithScalar(encryptedSTD, (long) mean);
+            encryptedSTD = bfvService.homomorphicMultiply(encryptedSTD, encryptedSTD, version);
+            // Use homomorphic addition to sum all encrypted values
+            for (int i = 1; i < encryptedValues.size(); i++) {
+                String ciphertext = encryptedValues.get(i);
+                String subtraction = bfvService.homomorphicSubWithScalar(ciphertext, (long) mean);
+                String squared = bfvService.homomorphicMultiply(subtraction, subtraction, version);
+                encryptedSTD += bfvService.homomorphicAdd(List.of(squared, encryptedSTD), version);
+            }            
+            // Decrypt the final sum and add to plain sum
+            plainStd += encryptionService.decryptLong(encryptedSTD, version);
+        }
 
         logger.fine("Std for version " + version + ": " + plainStd);
 

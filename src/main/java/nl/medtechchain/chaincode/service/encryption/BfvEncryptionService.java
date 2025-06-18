@@ -115,9 +115,26 @@ public class BfvEncryptionService implements EncryptionService {
     
     @Override
     public String homomorphicMultiply(String ciphertext1, String ciphertext2, String version) {
-        throw new UnsupportedOperationException(
-            "BFV multiplication is not exposed by the current TTP implementation. " +
-            "The TTP only supports addition operations."
-        );
+        if (ciphertext1 == null || ciphertext2 == null) {
+            throw new IllegalArgumentException("Ciphertexts cannot be null");
+        }   
+        try {
+            return cli.multiply(ciphertext1, ciphertext2);
+        } catch (Exception e) {
+            logger.severe("BFV homomorphic multiplication failed: " + e.getMessage());
+            throw new RuntimeException("BFV homomorphic multiplication failed", e);
+        }
     }
+
+    public String homomorphicSubWithScalar(String ciphertext, long scalar) {
+        if (ciphertext == null)
+            throw new IllegalArgumentException("Ciphertext cannot be null");
+        try {
+            return cli.subtractScalar(ciphertext, scalar);
+        } catch (Exception e) {
+            logger.severe("BFV homomorphic subtraction with scalar failed: " + e.getMessage());
+            throw new RuntimeException("BFV homomorphic subtraction with scalar failed", e);
+        }
+    }
+
 }
