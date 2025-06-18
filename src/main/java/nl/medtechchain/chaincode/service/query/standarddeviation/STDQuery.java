@@ -290,7 +290,7 @@ public class STDQuery extends QueryProcessor {
                 String ciphertext = encryptedValues.get(i);
                 String subtraction = bfvService.homomorphicSubWithScalar(ciphertext, (long) mean);
                 String squared = bfvService.homomorphicMultiply(subtraction, subtraction, version);
-                encryptedSTD += bfvService.homomorphicAdd(List.of(squared, encryptedSTD), version);
+                encryptedSTD = bfvService.homomorphicAdd(List.of(squared, encryptedSTD), version);
             }            
             // Decrypt the final sum and add to plain sum
             plainStd += encryptionService.decryptLong(encryptedSTD, version);

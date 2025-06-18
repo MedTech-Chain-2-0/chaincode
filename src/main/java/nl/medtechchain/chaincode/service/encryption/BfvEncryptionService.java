@@ -70,7 +70,7 @@ public class BfvEncryptionService implements EncryptionService {
     @Override
     public boolean supportsMultiplication() {
         // Current TTP BFV implementation doesn't expose multiplication endpoint
-        return false;
+        return true;
     }
     
     @Override
