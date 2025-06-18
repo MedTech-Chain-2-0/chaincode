@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Simple helper: run *from* chaincode/scripts to copy just the FHE bits needed
-# for compiling `bfv_calc` into ../fhe-src .
+# Simple helper: copy the FHE bits needed for compiling `bfv_calc` into ../fhe-src.
 
 set -e
 
-# Paths
-CHAINCODE_DIR="$(cd .. && pwd)"          # one level up from scripts/
-ROOT_DIR="$(cd ../.. && pwd)"             # repo root (contains fhe/)
+# Determine script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHAINCODE_DIR="${SCRIPT_DIR}/.."    # one level up from scripts/
+ROOT_DIR="${SCRIPT_DIR}/../.."       # repo root (contains fhe/)
 FHE_DIR="${ROOT_DIR}/fhe"
 DEST="${CHAINCODE_DIR}/fhe-src"
 
@@ -23,4 +23,4 @@ mkdir -p "${DEST}"
 cp "${FHE_DIR}/CMakeLists.txt" "${DEST}/"
 cp -r "${FHE_DIR}/src" "${DEST}/"
 
-echo "[copy-fhe] Done. FHE source is at ${DEST}" 
+echo "[copy-fhe] Done. FHE source is at ${DEST}"
