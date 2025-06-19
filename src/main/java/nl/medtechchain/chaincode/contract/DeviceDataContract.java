@@ -76,9 +76,9 @@ public final class DeviceDataContract implements ContractInterface {
                         case GROUPED_COUNT:
                             r = queryService.groupedCount(query, data);
                             break;
-                        case AVERAGE:
-                            r = queryService.average(query, data);
-                            break;
+                        // case AVERAGE:
+                        //     r = queryService.average(query, data);
+                        //     break;
                         case SUM:
                             r = queryService.sum(query, data);
                             break;

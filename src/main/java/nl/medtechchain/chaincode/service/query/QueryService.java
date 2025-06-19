@@ -4,7 +4,7 @@ import com.google.privacy.differentialprivacy.LaplaceNoise;
 import com.google.protobuf.Descriptors;
 import nl.medtechchain.chaincode.config.ConfigOps;
 import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
-import nl.medtechchain.chaincode.service.query.average.AverageQuery;
+// import nl.medtechchain.chaincode.service.query.average.AverageQuery;
 import nl.medtechchain.chaincode.service.query.count.CountQuery;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
 import nl.medtechchain.chaincode.service.query.linearregression.LinearRegressionQuery;
@@ -190,26 +190,26 @@ public class QueryService {
         return result;
     }
     
-    public QueryResult average(Query query, List<DeviceDataAsset> assets) {
-        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+    // public QueryResult average(Query query, List<DeviceDataAsset> assets) {
+    //     var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
 
-        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP) {
-            throw new IllegalStateException(
-                "Cannot run AVERAGE over " + fieldType + ". " +
-                "Only numeric and timestamp fields are supported for average calculations."
-            );
-        }
+    //     if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP) {
+    //         throw new IllegalStateException(
+    //             "Cannot run AVERAGE over " + fieldType + ". " +
+    //             "Only numeric and timestamp fields are supported for average calculations."
+    //         );
+    //     }
 
-        QueryResult result = new AverageQuery(platformConfig).process(query, assets);
+    //     QueryResult result = new AverageQuery(platformConfig).process(query, assets);
 
-        if (mechanismType == MechanismType.LAPLACE) {
-            var noise = new LaplaceNoise();
-            double noisyAverage = noise.addNoise(result.getAverageResult(), 1, getEpsilon(), 0);
-            result = QueryResult.newBuilder().setAverageResult(noisyAverage).build();
-        }
+    //     if (mechanismType == MechanismType.LAPLACE) {
+    //         var noise = new LaplaceNoise();
+    //         double noisyAverage = noise.addNoise(result.getAverageResult(), 1, getEpsilon(), 0);
+    //         result = QueryResult.newBuilder().setAverageResult(noisyAverage).build();
+    //     }
 
-        return result; 
-    }
+    //     return result; 
+    // }
     
     public QueryResult uniqueCount(Query query, List<DeviceDataAsset> assets) {
         var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
