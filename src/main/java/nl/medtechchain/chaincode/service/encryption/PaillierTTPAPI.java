@@ -14,6 +14,9 @@ public interface PaillierTTPAPI {
 
     PaillierEncryptionKeyResponse encryptionKey(int bitLength) throws IOException, InterruptedException;
 
+    // Get current version without generating a new key
+    PaillierEncryptionKeyResponse getCurrentVersion() throws IOException, InterruptedException;
+
     // Get encryption key by version
     PaillierEncryptionKeyResponse getKeyByVersion(String version) throws IOException, InterruptedException;
 
@@ -30,6 +33,17 @@ public interface PaillierTTPAPI {
                 var request = HttpRequest.newBuilder()
                         .GET()
                         .uri(URI.create("http://" + ttpAddress + "/api/paillier/key?bitLength=" + bitLength))
+                        .build();
+
+                var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                return om.readValue(response.body(), PaillierEncryptionKeyResponse.class);
+            }
+
+            @Override
+            public PaillierEncryptionKeyResponse getCurrentVersion() throws IOException, InterruptedException {
+                var request = HttpRequest.newBuilder()
+                        .GET()
+                        .uri(URI.create("http://" + ttpAddress + "/api/paillier/current-key"))
                         .build();
 
                 var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

@@ -171,14 +171,14 @@ public class HistogramQuery extends QueryProcessor {
                 if (field.getFieldCase() == DeviceDataAsset.IntegerField.FieldCase.PLAIN) {
                     value = field.getPlain();
                 } else if (field.getFieldCase() == DeviceDataAsset.IntegerField.FieldCase.ENCRYPTED && encryptionService != null) {
-                    value = encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion());
+                    value = encryptionService.decryptLong(field.getEncrypted(), asset.getKeyVersion());
                 }
             } else if (fieldValue instanceof DeviceDataAsset.TimestampField) {
                 DeviceDataAsset.TimestampField field = (DeviceDataAsset.TimestampField) fieldValue;
                 if (field.getFieldCase() == DeviceDataAsset.TimestampField.FieldCase.PLAIN) {
                     value = field.getPlain().getSeconds();
                 } else if (field.getFieldCase() == DeviceDataAsset.TimestampField.FieldCase.ENCRYPTED && encryptionService != null) {
-                    value = encryptionService.decryptLong(field.getEncrypted(), encryptionService.getCurrentVersion());
+                    value = encryptionService.decryptLong(field.getEncrypted(), asset.getKeyVersion());
                 }
             }
 
