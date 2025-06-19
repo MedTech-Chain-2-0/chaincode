@@ -1,18 +1,23 @@
 package nl.medtechchain.chaincode.service.encryption;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.logging.Logger;
+import nl.medtechchain.chaincode.service.encryption.bfv.BfvCliClient;
+import nl.medtechchain.chaincode.service.encryption.BfvTTPAPI;
 
-// BFV encryption - only supports integers, homomorphic add but no versioning yet  
+// BFV encryption: ints only, homomorphic add.
 public class BfvEncryptionService implements EncryptionService {
     
     private static final Logger logger = Logger.getLogger(BfvEncryptionService.class.getName());
     private static final String BFV_VERSION = "bfv-default";
     
+    private final BfvCliClient cli;
     private final BfvTTPAPI api;
     
-    public BfvEncryptionService(String ttpAddress) {
+    public BfvEncryptionService(String cliBinaryPath, String ttpAddress) {
+        this.cli = new BfvCliClient(cliBinaryPath);
         this.api = BfvTTPAPI.getInstance(ttpAddress);
     }
     
@@ -65,7 +70,7 @@ public class BfvEncryptionService implements EncryptionService {
     @Override
     public boolean supportsMultiplication() {
         // Current TTP BFV implementation doesn't expose multiplication endpoint
-        return false;
+        return true;
     }
     
     @Override
@@ -77,18 +82,59 @@ public class BfvEncryptionService implements EncryptionService {
             return ciphertexts.get(0);
         }
         try {
-            return api.addAll(ciphertexts);
+            return reduceAdd(ciphertexts);
         } catch (Exception e) {
             logger.severe("BFV homomorphic addition failed: " + e.getMessage());
             throw new RuntimeException("BFV homomorphic addition failed", e);
         }
     }
     
+    /**
+     * Recursively reduces a list of ciphertexts by adding in chunks of up to 10,
+     * returning a single aggregated ciphertext.
+     */
+    private String reduceAdd(List<String> cts) throws Exception {
+        if (cts.size() == 1) {
+            return cts.get(0);
+        }
+        if (cts.size() <= 10) {
+            return cli.addMany(cts);
+        }
+        List<String> next = new ArrayList<>();
+        for (int i = 0; i < cts.size(); i += 10) {
+            int end = Math.min(i + 10, cts.size());
+            List<String> chunk = cts.subList(i, end);
+            if (chunk.size() == 1) {
+                next.add(chunk.get(0));
+            } else {
+                next.add(cli.addMany(chunk));
+            }
+        }
+        return reduceAdd(next);
+    }
+    
     @Override
     public String homomorphicMultiply(String ciphertext1, String ciphertext2, String version) {
-        throw new UnsupportedOperationException(
-            "BFV multiplication is not exposed by the current TTP implementation. " +
-            "The TTP only supports addition operations."
-        );
+        if (ciphertext1 == null || ciphertext2 == null) {
+            throw new IllegalArgumentException("Ciphertexts cannot be null");
+        }   
+        try {
+            return cli.multiply(ciphertext1, ciphertext2);
+        } catch (Exception e) {
+            logger.severe("BFV homomorphic multiplication failed: " + e.getMessage());
+            throw new RuntimeException("BFV homomorphic multiplication failed", e);
+        }
     }
-} 
+
+    public String homomorphicSubWithScalar(String ciphertext, long scalar) {
+        if (ciphertext == null)
+            throw new IllegalArgumentException("Ciphertext cannot be null");
+        try {
+            return cli.subtractScalar(ciphertext, scalar);
+        } catch (Exception e) {
+            logger.severe("BFV homomorphic subtraction with scalar failed: " + e.getMessage());
+            throw new RuntimeException("BFV homomorphic subtraction with scalar failed", e);
+        }
+    }
+
+}

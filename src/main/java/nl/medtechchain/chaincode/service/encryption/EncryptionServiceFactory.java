@@ -29,10 +29,10 @@ public class EncryptionServiceFactory {
                 return new PaillierEncryptionService(ttpAddress);
                 
             case "bfv":
-                // BFV uses the same TTP address config key as Paillier currently
                 String bfvTtpAddress = getUnsafe(config, CONFIG_FEATURE_QUERY_ENCRYPTION_PAILLIER_TTP_ADRRESS);
-                logger.info("Creating BFV encryption service with TTP: " + bfvTtpAddress);
-                return new BfvEncryptionService(bfvTtpAddress);
+                String cliBinary = "/app/bfv_calc";
+                logger.info("BFV via CLI + TTP");
+                return new BfvEncryptionService(cliBinary, bfvTtpAddress);
                 
             case "plaintext":
             case "none":
