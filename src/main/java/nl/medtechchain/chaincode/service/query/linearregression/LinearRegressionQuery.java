@@ -162,7 +162,6 @@ public class LinearRegressionQuery extends QueryProcessor {
                 sumXY += xPlain * yPlain;
                 sumX2 += xPlain * xPlain;
                 sumY2 += yPlain * yPlain;
-
             }
             // both encrypted
             else if (homomorphic && xEnc != null && yEnc != null) {
