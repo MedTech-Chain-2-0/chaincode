@@ -32,8 +32,8 @@ public class LinearRegressionQuery extends QueryProcessor {
 
         // Group assets by version
         Map<String, List<DeviceDataAsset>> versionGroups = groupByVersion(assets);
+        AccumulatedValues accumulatedValues = new AccumulatedValues();
 
-        List<RegressionResult> versionResults = new ArrayList<>();
         for (Map.Entry<String, List<DeviceDataAsset>> entry : versionGroups.entrySet()) {
             String version = entry.getKey();
             List<DeviceDataAsset> versionAssets = entry.getValue();
@@ -44,37 +44,52 @@ public class LinearRegressionQuery extends QueryProcessor {
             }
 
             logger.fine("Processing regression for " + versionAssets.size() + " assets with version: " + version);
-            RegressionResult result = processVersionGroup(versionAssets, xFieldDescriptor, yFieldDescriptor, version);
-            if (result != null) {
-                versionResults.add(result);
-            }
+            AccumulatedValues vals = processVersionGroup(versionAssets, xFieldDescriptor, yFieldDescriptor, version);
+            accumulatedValues.add(vals);
         }
 
-        if (versionResults.isEmpty()) {
+        if (accumulatedValues.count < 2) {
             return createEmptyResult();
         }
 
-        // Calculate weighted average of results based on number of points in each
-        // version
-        double totalPoints = versionResults.stream().mapToInt(RegressionResult::getCount).sum();
-        double weightedSlope = 0;
-        double weightedIntercept = 0;
-        double weightedRSquared = 0;
+        double sumX = accumulatedValues.sumX;
+        double sumY = accumulatedValues.sumY;
+        double sumXY = accumulatedValues.sumXY;
+        double sumX2 = accumulatedValues.sumX2;
+        double sumY2 = accumulatedValues.sumY2;
+        int count = accumulatedValues.count;
 
-        for (RegressionResult result : versionResults) {
-            double weight = result.getCount() / totalPoints;
-            weightedSlope += result.getSlope() * weight;
-            weightedIntercept += result.getIntercept() * weight;
-            weightedRSquared += result.getRSquared() * weight;
+        // slope and intercept
+        if(count * sumX2 - sumX * sumX == 0) {
+            return createEmptyResult();
         }
+
+        double slope = (count * sumXY - sumX * sumY) / (count * sumX2 - sumX * sumX);
+        double intercept = (sumY - slope * sumX) / count;
+
+        // r squared
+        double meanY = sumY / count;
+        double ssTot = sumY2 - 2 * meanY * sumY + count * meanY * meanY;
+
+        double ssRes = sumY2
+             - 2 * slope * sumXY
+             - 2 * intercept * sumY
+             + slope * slope * sumX2
+             + 2 * slope * intercept * sumX
+             + intercept * intercept * count;
+
+        double r2 = 1.0 - (ssRes / ssTot);
+
+        RegressionResult result = new RegressionResult(slope, intercept, r2, count);
 
         return QueryResult.newBuilder()
                 .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                        .setSlope(weightedSlope * SECONDS_PER_DAY) // converts the slope to reflect change per day, and not per second
-                        .setIntercept(weightedIntercept)
-                        .setRSquared(weightedRSquared)
+                        .setSlope(result.getSlope() * SECONDS_PER_DAY)
+                        .setIntercept(result.getIntercept())
+                        .setRSquared(result.getRSquared())
                         .build())
                 .build();
+
     }
 
     private QueryResult createEmptyResult() {
@@ -87,7 +102,7 @@ public class LinearRegressionQuery extends QueryProcessor {
                 .build();
     }
 
-    private RegressionResult processVersionGroup(
+    private AccumulatedValues processVersionGroup(
             List<DeviceDataAsset> assets,
             // x field assumed by design to always be a timestamp
             Descriptors.FieldDescriptor xDesc,
@@ -236,30 +251,47 @@ public class LinearRegressionQuery extends QueryProcessor {
             }
         }
 
-        if (count < 2)
-            return new RegressionResult(0, 0, 0, 0);
+        return new AccumulatedValues(sumX, sumY, sumXY, sumX2, sumY2, count);
+    }
 
-        // slope and intercept
-        double slope = (count * sumXY - sumX * sumY) / (count * sumX2 - sumX * sumX);
-        double intercept = (sumY - slope * sumX) / count;
+    private static class AccumulatedValues {
+        double sumX;
+        double sumY;
+        double sumXY;
+        double sumX2;
+        double sumY2;
+        int count = 0;
 
-        // r squared
-        double meanY = sumY / count;
-        double ssTot = sumY2 - 2 * meanY * sumY + count * meanY * meanY;
-        // double ssRes = (count * sumXY - 2 * sumX * sumY + count * slope * slope * sumX2
-        //         + count * intercept * intercept + 2 * slope * intercept * sumX
-        //         - 2 * intercept * sumY);
+        public AccumulatedValues() {
+            this.sumX = 0;
+            this.sumY = 0;
+            this.sumXY = 0;
+            this.sumX2 = 0;
+            this.sumY2 = 0;
+            this.count = 0;
+        }
 
-        double ssRes = sumY2
-             - 2 * slope * sumXY
-             - 2 * intercept * sumY
-             + slope * slope * sumX2
-             + 2 * slope * intercept * sumX
-             + intercept * intercept * count;
+        public AccumulatedValues(double sumX, double sumY, double sumXY, double sumX2, double sumY2, int count) {  
+            this.sumX = sumX;
+            this.sumY = sumY;
+            this.sumXY = sumXY;
+            this.sumX2 = sumX2;
+            this.sumY2 = sumY2;
+            this.count = count;
+        }
 
-        double r2 = 1.0 - (ssRes / ssTot);
+        public void add(double sumX, double sumY, double sumXY, double sumX2, double sumY2, int count) {
+            this.sumX += sumX;
+            this.sumY += sumY;
+            this.sumXY += sumXY;
+            this.sumX2 += sumX2;
+            this.sumY2 += sumY2;
+            this.count += count;
+        }
 
-        return new RegressionResult(slope, intercept, r2, count);
+        public void add(AccumulatedValues other) {
+            add(other.sumX, other.sumY, other.sumXY, other.sumX2, other.sumY2, other.count);
+        }
     }
 
     private static class RegressionResult {
