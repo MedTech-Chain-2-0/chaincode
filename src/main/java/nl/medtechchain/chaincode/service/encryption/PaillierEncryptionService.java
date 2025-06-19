@@ -121,6 +121,22 @@ public class PaillierEncryptionService implements EncryptionService {
             "Use BFV encryption for multiplication operations."
         );
     }
+
+    @Override
+    public String homomorphicMultiplyWithScalar(String ciphertext, long scalar, String version) {
+        throw new UnsupportedOperationException(
+            "Homomorphic multiplication with scalar is not implemented by Paillier encryption. " +
+            "Use BFV encryption for multiplication operations."
+        );
+    }
+
+    @Override
+    public String homomorphicSubWithScalar(String ciphertext, long scalar) {
+        throw new UnsupportedOperationException(
+            "Homomorphic subtraction with scalar is not implemented by Paillier encryption. " +
+            "Use BFV encryption for subtraction operations."
+        );
+    }
     
     // helper methods
     

@@ -195,20 +195,41 @@ public class LinearRegressionQuery extends QueryProcessor {
             }
             // one of the pair is encrypted – decrypt it
             else {
-                if (xPlain == null)
-                    xPlain = (double) encryptionService.decryptLong(xEnc, version);
-                if (yPlain == null)
-                    yPlain = (double) encryptionService.decryptLong(yEnc, version);
+                // we can do operation homomorphically
+                if(homomorphic && canMultiply) {
+                    // x enc, y plain
+                    if(xEnc != null) {
+                        encXList.add(xEnc);
+                        encXYList.add(encryptionService.homomorphicMultiplyWithScalar(xEnc, Math.round(yPlain), version));
+                        encX2List.add(encryptionService.homomorphicMultiply(xEnc, xEnc, version));
 
-                sumX += xPlain;
-                sumY += yPlain;
-                sumXY += xPlain * yPlain;
-                sumX2 += xPlain * xPlain;
-                sumY2 += yPlain * yPlain;
+                        sumY += yPlain;
+                        sumY2 += yPlain * yPlain;
+                    }
+                    // y enc, x plain
+                    if(yEnc != null) {
+                        encYList.add(yEnc);
+                        encXYList.add(encryptionService.homomorphicMultiplyWithScalar(yEnc, Math.round(xPlain), version));
+                        encY2List.add(encryptionService.homomorphicMultiply(yEnc, yEnc, version));
+
+                        sumX += xPlain;
+                        sumX2 += xPlain * xPlain;
+                    }
+                }
+                // we can't do operation homomorphically
+                else{
+                    if(xPlain == null) xPlain = (double) encryptionService.decryptLong(xEnc, version);
+                    if(yPlain == null) yPlain = (double) encryptionService.decryptLong(yEnc, version);
+
+                    sumX += xPlain;
+                    sumY += yPlain;
+                    sumXY += xPlain * yPlain;
+                    sumX2 += xPlain * xPlain;
+                    sumY2 += yPlain * yPlain;
+                }
             }
         } // end of the for loop processing assets, now we do maths
 
-        // MATHS
         // homomorphic reduction of accumulated ciphertexts
         if (homomorphic) {
             //  X values

@@ -120,4 +120,24 @@ public class TestEncryptionService implements EncryptionService {
     public static TestDataGenerator.Ciphertext encryptBool(boolean value, String version) {
         return new TestDataGenerator.Ciphertext(value ? "1" : "0", version);
     }
+
+    @Override
+    public String homomorphicSubWithScalar(String ciphertext, long scalar) {
+        if (!supportsMultiplication) {
+            throw new UnsupportedOperationException("This test encryption service does not support subtraction");
+        }
+        
+        long value = Long.parseLong(ciphertext);
+        return String.valueOf(value - scalar);
+    }
+
+    @Override
+    public String homomorphicMultiplyWithScalar(String ciphertext, long scalar, String version) {
+        if (!supportsMultiplication) {
+            throw new UnsupportedOperationException("This test encryption service does not support multiplication");
+        }
+        
+        long value = Long.parseLong(ciphertext);
+        return String.valueOf(value * scalar);
+    }
 } 
