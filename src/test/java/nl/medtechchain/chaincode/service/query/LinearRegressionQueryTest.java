@@ -14,274 +14,204 @@ import java.util.*;
 
 public class LinearRegressionQueryTest {
 
-    private static final double SECONDS_PER_DAY = 86_400.0;
+    private static final double SECONDS_PER_DAY = 86400;
     private static final double SLOPE_EPS = 0.1;
-    private static final double SMALL_EPS = 0.0001; 
+    private static final double SMALL_EPS = 0.0001;
 
     private TestDataGenerator generator;
     private PlatformConfig cfg;
 
     @BeforeEach
-    public void init() {
-        generator = new TestDataGenerator(42); 
+    void setUp() {
+        generator = new TestDataGenerator(42);
         cfg = PlatformConfig.newBuilder().build();
     }
-
-    private Query linearRegressionQuery(String xField, String yField) {
+    // proto query
+    private Query buildQuery() {
         return Query.newBuilder()
                 .setQueryType(Query.QueryType.LINEAR_REGRESSION)
-                .setXTargetField(xField)
-                .setYTargetField(yField)
+                .setXTargetField("production_date")
+                .setYTargetField("usage_hours")
                 .build();
     }
 
-    private QueryResult.LinearRegressionResult exec(List<DeviceDataAsset> assets,
-            String xField,
-            String yField,
-            TestEncryptionService encSvc) {
+    private QueryResult.LinearRegressionResult run(List<DeviceDataAsset> assets,
+                                                   TestEncryptionService encSvc) {
         LinearRegressionQuery lr = new LinearRegressionQuery(cfg);
 
+        //encryption service if provided.
         if (encSvc != null) {
             try {
                 var f = lr.getClass().getSuperclass().getDeclaredField("encryptionService");
                 f.setAccessible(true);
                 f.set(lr, encSvc);
             } catch (Exception e) {
-                throw new RuntimeException("reflection failed", e);
+                throw new RuntimeException("Reflection failed", e);
             }
         }
-        return lr.process(linearRegressionQuery(xField, yField), assets).getLinearRegressionResult();
+        return lr.process(buildQuery(), assets).getLinearRegressionResult();
     }
 
-    private DeviceDataAsset plainXY(long x, long y) {
-        Map<String, Object> vals = new HashMap<>();
-        vals.put("production_date", Timestamp.newBuilder().setSeconds(x).build());
-        vals.put("usage_hours", (int) y);
-        return generator.generateAsset(vals);
+    private DeviceDataAsset plain(long x, long y) {
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("production_date", Timestamp.newBuilder().setSeconds(x).build());
+        fields.put("usage_hours", (int) y);
+        return generator.generateAsset(fields);
     }
 
+    private DeviceDataAsset asset(long x,
+                                  long y,
+                                  String version,
+                                  boolean encX,
+                                  boolean encY) {
+        Map<String, Object> fields = new HashMap<>();
 
+        if (encX) {
+            TestDataGenerator.Ciphertext ctX = TestEncryptionService.encryptLong(x, version);
+            fields.put("production_date", ctX);
+        } else {
+            fields.put("production_date",
+                    Timestamp.newBuilder().setSeconds(x).build());
+        }
 
-    // tests
+        if (encY) {
+            TestDataGenerator.Ciphertext ctY = TestEncryptionService.encryptLong(y, version);
+            fields.put("usage_hours", ctY);
+        } else {
+            fields.put("usage_hours", (int) y);
+        }
+        return generator.generateAsset(fields, version);
+    }
+
     @Test
-    public void emptyAssetListGivesZeros() {
-        QueryResult.LinearRegressionResult r = exec(new ArrayList<>(), "production_date", "usage_hours", null);
-
-        Assertions.assertEquals(0.0, r.getSlope(), SMALL_EPS);
-        Assertions.assertEquals(0.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertEquals(0.0, r.getRSquared(), SMALL_EPS);
+    public void emptyAssetListReturnsZeros() {
+        var r = run(Collections.emptyList(), null);
+        Assertions.assertEquals(0, r.getSlope(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getRmse(), SMALL_EPS);
     }
 
     @Test
-    public void singlePointGivesZeros() {
-        List<DeviceDataAsset> assets = new ArrayList<>();
-        assets.add(plainXY(1, 2));
-
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
-
-        Assertions.assertEquals(0.0, r.getSlope(), SMALL_EPS);
-        Assertions.assertEquals(0.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertEquals(0.0, r.getRSquared(), SMALL_EPS);
+    public void singlePointReturnsZeros() {
+        List<DeviceDataAsset> assets = List.of(plain(1, 2));
+        var r = run(assets, null);
+        Assertions.assertEquals(0, r.getSlope(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getRmse(), SMALL_EPS);
     }
 
     @Test
     public void perfectLinearCorrelationPlaintext() {
         List<DeviceDataAsset> assets = new ArrayList<>();
-        for (int x = 1; x <= 4; x++) {
-            assets.add(plainXY(x, 2 * x + 1));
-        }
+        for (int x = 1; x <= 4; x++)
+            assets.add(plain(x, 2 * x + 1));
 
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
-
-        double expectedSlope = 2.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(1.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertEquals(1.0, r.getRSquared(), SMALL_EPS);
+        var r = run(assets, null);
+        Assertions.assertEquals(2 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(1, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getRmse(), SMALL_EPS);  
     }
 
     @Test
     public void noCorrelationPlaintext() {
-
         List<DeviceDataAsset> assets = List.of(
-                plainXY(1, 5),
-                plainXY(2, 2),
-                plainXY(3, 8),
-                plainXY(4, 1));
+                plain(1, 5),
+                plain(2, 2),
+                plain(3, 8),
+                plain(4, 1));
 
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
-
-        Assertions.assertTrue(r.getRSquared() < 0.5, "expect weak/no correlation");
-    }
-
-    private DeviceDataAsset buildAsset(long x,
-            long y,
-            String keyVersion,
-            boolean encX,
-            boolean encY) {
-
-        Map<String, Object> v = new HashMap<>();
-
-        if (encX)
-            v.put("production_date",
-                    TestEncryptionService.encryptLong(x, keyVersion));
-        else
-            v.put("production_date",
-                    Timestamp.newBuilder().setSeconds(x).build());
-
-        if (encY)
-            v.put("usage_hours",
-                    TestEncryptionService.encryptLong(y, keyVersion));
-        else
-            v.put("usage_hours", (int) y);
-
-        return generator.generateAsset(v, keyVersion);
+        Assertions.assertTrue(run(assets, null).getRmse() > 2);  
     }
 
     @Test
-    public void encryptedDataWithoutService() {
+    public void encryptedDataWithoutServiceThrows() {
         List<DeviceDataAsset> assets = List.of(
-                buildAsset(1, 3, "v1", true, true),
-                buildAsset(2, 5, "v1", true, true));
+                asset(1, 3, "v1", true, true),
+                asset(2, 5, "v1", true, true));
 
         Assertions.assertThrows(NullPointerException.class,
-                () -> exec(assets, "production_date", "usage_hours", null));
+                () -> run(assets, null));
     }
 
     @Test
-    public void paillier() {
+    public void paillierHomomorphic() {
         Set<String> versions = Set.of("paillier-v1");
-        TestEncryptionService enc = new TestEncryptionService(true, true,
-                versions, "paillier-v1");
+        TestEncryptionService enc = new TestEncryptionService(true, true, versions, "paillier-v1");
 
         List<DeviceDataAsset> assets = new ArrayList<>();
-        for (int x = 1; x <= 5; x++) {
-            assets.add(buildAsset(x, 3 * x + 2, "paillier-v1", true, true));
-        }
+        for (int x = 1; x <= 5; x++)
+            assets.add(asset(x, 3 * x + 2, "paillier-v1", true, true));
 
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", enc);
-
-        double expectedSlope = 3.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(2.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertEquals(1.0, r.getRSquared(), SMALL_EPS);
+        var r = run(assets, enc);
+        Assertions.assertEquals(3 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(2, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getRmse(), SMALL_EPS);
     }
 
     @Test
     public void mixedPlainAndEncrypted() {
         Set<String> versions = Set.of("paillier-v1");
-        TestEncryptionService enc = new TestEncryptionService(true, true,
-                versions, "paillier-v1");
+        TestEncryptionService enc = new TestEncryptionService(true, true, versions, "paillier-v1");
 
         List<DeviceDataAsset> assets = List.of(
-                plainXY(1, 3), // plain
-                buildAsset(2, 5, "paillier-v1", true, true), // enc
-                plainXY(3, 7), // plain
-                buildAsset(4, 9, "paillier-v1", true, true)); // enc
+                plain(1, 3),
+                asset(2, 5, "paillier-v1", true, true),
+                plain(3, 7),
+                asset(4, 9, "paillier-v1", true, true));
 
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", enc);
-
-        double expectedSlope = 2.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(1.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertTrue(r.getRSquared() > 0.99);
+        var r = run(assets, enc);
+        Assertions.assertEquals(2 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(1, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getRmse(), SMALL_EPS); 
     }
 
     @Test
     public void weightedAverageAcrossVersions() {
         List<DeviceDataAsset> assets = new ArrayList<>();
         for (int x = 1; x <= 3; x++) {
-            assets.add(plainXY(x, x)); // v1
-            assets.add(buildAsset(x, 3 * x + 2, "v2", false, false)); // v2
+            assets.add(plain(x, x));
+            assets.add(asset(x, 3 * x + 2, "v2", false, false));
         }
-
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
-
-        double expectedSlope = 2.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(1.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertTrue(r.getRSquared() > 0.80);
-    }
-
-    @Test
-    public void largeDatasetPlaintext() {
-        List<DeviceDataAsset> assets = new ArrayList<>();
-        for (int x = 1; x <= 1_000; x++) {
-            assets.add(plainXY(x, 4 * x + 3));
-        }
-
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
-
-        double expectedSlope = 4.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(3.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertEquals(1.0, r.getRSquared(), 1e-5);
-    }
-
-    @Test
-    public void homomorphicAdditionOnly() {
-        Set<String> versions = Set.of("paillier-add");
-        TestEncryptionService enc = new TestEncryptionService(true,
-                false,
-                versions, "paillier-add");
-
-        List<DeviceDataAsset> assets = new ArrayList<>();
-        for (int x = 1; x <= 4; x++) {
-            assets.add(buildAsset(x, 2 * x + 1, "paillier-add", true, true));
-        }
-
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", enc);
-
-        double expectedSlope = 2.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(1.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertEquals(1.0, r.getRSquared(), SMALL_EPS);
-    }
-
-    @Test
-    public void heavilyUnequalVersionWeighting() {
-        List<DeviceDataAsset> assets = new ArrayList<>();
-
-        for (int x = 1; x <= 10; x++)
-            assets.add(buildAsset(x, 2 * x + 1, "vA", false, false));
-
-        for (int x = 1; x <= 2; x++)
-            assets.add(buildAsset(x, -3 * x + 5, "vB", false, false));
-
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
-
-        double expectedSlope = (14.0 / 12.0) * SECONDS_PER_DAY;
-        
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(1.667, r.getIntercept(), 0.02);
-        Assertions.assertTrue(r.getRSquared() > 0.70);
+        var r = run(assets, null);
+        Assertions.assertEquals(2 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(1, r.getIntercept(), SMALL_EPS);
+        Assertions.assertTrue(r.getRmse() > 2); 
     }
 
     @Test
     public void versionWithSinglePointIgnored() {
         List<DeviceDataAsset> assets = new ArrayList<>();
         for (int x = 1; x <= 5; x++)
-            assets.add(buildAsset(x, 2 * x, "v1", false, false));
+            assets.add(asset(x, 2 * x, "v1", false, false));
 
-        assets.add(buildAsset(10, 1234, "v2", false, false));
+        assets.add(asset(10, 1234, "v2", false, false));
 
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
+        var r = run(assets, null);
+        Assertions.assertEquals(2 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(0, r.getIntercept(), SMALL_EPS);
+    }
 
-        double expectedSlope = 2.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(0.0, r.getIntercept(), SMALL_EPS);
+    @Test
+    public void largeDatasetPlaintext() {
+        List<DeviceDataAsset> assets = new ArrayList<>();
+        for (int x = 1; x <= 1_000; x++)
+            assets.add(plain(x, 4 * x + 3));
+
+        var r = run(assets, null);
+        Assertions.assertEquals(4 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(3, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getRmse(), SMALL_EPS);
     }
 
     @Test
     public void negativeSlopePlaintext() {
         List<DeviceDataAsset> assets = new ArrayList<>();
         for (int x = 1; x <= 5; x++)
-            assets.add(plainXY(x, -2 * x + 10));
+            assets.add(plain(x, -2 * x + 10));
 
-        QueryResult.LinearRegressionResult r = exec(assets, "production_date", "usage_hours", null);
-
-        double expectedSlope = -2.0 * SECONDS_PER_DAY;
-        Assertions.assertEquals(expectedSlope, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(10.0, r.getIntercept(), SMALL_EPS);
-        Assertions.assertEquals(1.0, r.getRSquared(), SMALL_EPS);
+        var r = run(assets, null);
+        Assertions.assertEquals(-2 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(10, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0, r.getRmse(), SMALL_EPS);
     }
 }

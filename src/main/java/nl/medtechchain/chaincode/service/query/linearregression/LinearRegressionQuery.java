@@ -67,10 +67,6 @@ public class LinearRegressionQuery extends QueryProcessor {
         double slope = (count * sumXY - sumX * sumY) / (count * sumX2 - sumX * sumX);
         double intercept = (sumY - slope * sumX) / count;
 
-        // r squared
-        double meanY = sumY / count;
-        double ssTot = sumY2 - 2 * meanY * sumY + count * meanY * meanY;
-
         double ssRes = sumY2
              - 2 * slope * sumXY
              - 2 * intercept * sumY
@@ -78,15 +74,15 @@ public class LinearRegressionQuery extends QueryProcessor {
              + 2 * slope * intercept * sumX
              + intercept * intercept * count;
 
-        double r2 = 1.0 - (ssRes / ssTot);
+        double rmse = Math.sqrt(ssRes / count); // root mean squared error
 
-        RegressionResult result = new RegressionResult(slope, intercept, r2, count);
+        RegressionResult result = new RegressionResult(slope, intercept, rmse, count);
 
         return QueryResult.newBuilder()
                 .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
                         .setSlope(result.getSlope() * SECONDS_PER_DAY)
                         .setIntercept(result.getIntercept())
-                        .setRSquared(result.getRSquared())
+                        .setRmse(result.getRmse())
                         .build())
                 .build();
 
@@ -97,7 +93,7 @@ public class LinearRegressionQuery extends QueryProcessor {
                 .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
                         .setSlope(0)
                         .setIntercept(0)
-                        .setRSquared(0)
+                        .setRmse(0)
                         .build())
                 .build();
     }
@@ -297,13 +293,13 @@ public class LinearRegressionQuery extends QueryProcessor {
     private static class RegressionResult {
         private final double slope;
         private final double intercept;
-        private final double rSquared;
+        private final double rmse;
         private final int count;
 
-        public RegressionResult(double slope, double intercept, double rSquared, int count) {
+        public RegressionResult(double slope, double intercept, double rmse, int count) {
             this.slope = slope;
             this.intercept = intercept;
-            this.rSquared = rSquared;
+            this.rmse = rmse;
             this.count = count;
         }
 
@@ -315,8 +311,8 @@ public class LinearRegressionQuery extends QueryProcessor {
             return intercept;
         }
 
-        public double getRSquared() {
-            return rSquared;
+        public double getRmse() {
+            return rmse;
         }
 
         public int getCount() {
