@@ -4,6 +4,7 @@ import com.google.privacy.differentialprivacy.LaplaceNoise;
 import com.google.protobuf.Descriptors;
 import nl.medtechchain.chaincode.config.ConfigOps;
 import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
+import nl.medtechchain.chaincode.service.query.average.AverageQuery;
 import nl.medtechchain.chaincode.service.query.count.CountQuery;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
 import nl.medtechchain.chaincode.service.query.sum.SumQuery;
@@ -29,6 +30,7 @@ import java.util.logging.Logger;
 import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.get;
 import static nl.medtechchain.chaincode.config.ConfigOps.PlatformConfigOps.getUnsafe;
 import static nl.medtechchain.proto.config.PlatformConfig.Config.*;
+import static nl.medtechchain.proto.query.Query.QueryType.*;
 
 // Main query service - validates and executes queries with optional differential privacy
 public class QueryService {
@@ -185,7 +187,24 @@ public class QueryService {
     }
     
     public QueryResult average(Query query, List<DeviceDataAsset> assets) {
-        throw new UnsupportedOperationException("Average query not yet implemented with new architecture");
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP) {
+            throw new IllegalStateException(
+                "Cannot run AVERAGE over " + fieldType + ". " +
+                "Only numeric and timestamp fields are supported for average calculations."
+            );
+        }
+
+        QueryResult result = new AverageQuery(platformConfig).process(query, assets);
+
+        if (mechanismType == MechanismType.LAPLACE) {
+            var noise = new LaplaceNoise();
+            double noisyAverage = noise.addNoise(result.getAverageResult(), 1, getEpsilon(), 0);
+            result = QueryResult.newBuilder().setAverageResult(noisyAverage).build();
+        }
+
+        return result; 
     }
     
     public QueryResult uniqueCount(Query query, List<DeviceDataAsset> assets) {
@@ -243,6 +262,10 @@ public class QueryService {
         }
 
         return result;
+    }
+    
+    public QueryResult linearRegression(Query query, List<DeviceDataAsset> assets) {
+        return null;
     }
     
     // helpers
