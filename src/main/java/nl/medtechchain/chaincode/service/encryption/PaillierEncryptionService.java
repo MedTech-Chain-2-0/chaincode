@@ -24,7 +24,7 @@ public class PaillierEncryptionService implements EncryptionService {
     @Override
     public String getCurrentVersion() {
         try {
-            return api.encryptionKey(2048).getVersion();
+            return api.getCurrentVersion().getVersion();
         } catch (Exception e) {
             logger.severe("Failed to get current version from TTP: " + e.getMessage());
             throw new RuntimeException("Failed to get current version", e);
