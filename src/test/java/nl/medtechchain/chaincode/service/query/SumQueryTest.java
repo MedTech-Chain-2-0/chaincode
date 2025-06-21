@@ -59,7 +59,7 @@ public class SumQueryTest {
     }
     
     // basic functionality tests
-    
+
     @Test
     public void testSingleAsset() {
         Map<String, Map<Object, Integer>> spec = new HashMap<>();

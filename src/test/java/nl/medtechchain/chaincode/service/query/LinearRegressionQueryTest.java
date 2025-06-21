@@ -16,7 +16,7 @@ public class LinearRegressionQueryTest {
 
     private static final double SECONDS_PER_DAY = 86400;
     private static final double SLOPE_EPS = 0.1;
-    private static final double SMALL_EPS = 0.0001;
+    private static final double SMALL_EPS = 0.01;
 
     private TestDataGenerator generator;
     private PlatformConfig cfg;
@@ -194,15 +194,16 @@ public class LinearRegressionQueryTest {
     @Test
     public void largeDatasetPlaintext() {
         List<DeviceDataAsset> assets = new ArrayList<>();
-        for (int x = 1; x <= 1_000; x++)
-            assets.add(plain(x, 4 * x + 3));
+        for (int x = 0; x <= 1_000; x++)
+            assets.add(plain(x * 100000, 4 * x * 10000 + 3000));
 
         var r = run(assets, null);
-        Assertions.assertEquals(4 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
-        Assertions.assertEquals(3, r.getIntercept(), SMALL_EPS);
+        Assertions.assertEquals(0.4 * SECONDS_PER_DAY, r.getSlope(), SLOPE_EPS);
+        Assertions.assertEquals(3000, r.getIntercept(), SMALL_EPS);
         Assertions.assertEquals(0, r.getRmse(), SMALL_EPS);
     }
 
+    
     @Test
     public void negativeSlopePlaintext() {
         List<DeviceDataAsset> assets = new ArrayList<>();

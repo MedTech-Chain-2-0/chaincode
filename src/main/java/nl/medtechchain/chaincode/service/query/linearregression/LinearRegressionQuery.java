@@ -12,6 +12,7 @@ import java.util.logging.Logger;
 public class LinearRegressionQuery extends QueryProcessor {
     private static final Logger logger = Logger.getLogger(LinearRegressionQuery.class.getName());
     private static final double SECONDS_PER_DAY = 86400;
+    private static final double SCALE_FACTOR = 100000;
 
     public LinearRegressionQuery(PlatformConfig platformConfig) {
         super(platformConfig);
@@ -60,7 +61,7 @@ public class LinearRegressionQuery extends QueryProcessor {
         int count = accumulatedValues.count;
 
         // slope and intercept
-        if(count * sumX2 - sumX * sumX == 0) {
+        if (count * sumX2 - sumX * sumX == 0) {
             return createEmptyResult();
         }
 
@@ -68,11 +69,15 @@ public class LinearRegressionQuery extends QueryProcessor {
         double intercept = (sumY - slope * sumX) / count;
 
         double ssRes = sumY2
-             - 2 * slope * sumXY
-             - 2 * intercept * sumY
-             + slope * slope * sumX2
-             + 2 * slope * intercept * sumX
-             + intercept * intercept * count;
+                - 2 * slope * sumXY
+                - 2 * intercept * sumY
+                + slope * slope * sumX2
+                + 2 * slope * intercept * sumX
+                + intercept * intercept * count;
+
+        if (ssRes < 0 && ssRes > -1e-8) {
+            ssRes = 0;
+        }
 
         double rmse = Math.sqrt(ssRes / count); // root mean squared error
 
@@ -80,12 +85,11 @@ public class LinearRegressionQuery extends QueryProcessor {
 
         return QueryResult.newBuilder()
                 .setLinearRegressionResult(QueryResult.LinearRegressionResult.newBuilder()
-                        .setSlope(result.getSlope() * SECONDS_PER_DAY)
+                        .setSlope(result.getSlope() * SECONDS_PER_DAY / SCALE_FACTOR)
                         .setIntercept(result.getIntercept())
                         .setRmse(result.getRmse())
                         .build())
                 .build();
-
     }
 
     private QueryResult createEmptyResult() {
@@ -114,7 +118,8 @@ public class LinearRegressionQuery extends QueryProcessor {
         // ciphertext buckets – only used when the scheme is homomorphic
         List<String> encXList = new ArrayList<>();
         List<String> encYList = new ArrayList<>();
-        List<String> encXYList = new ArrayList<>();
+        List<String> encXYScaled = new ArrayList<>();
+        List<String> encXYUnscaled = new ArrayList<>();
         List<String> encX2List = new ArrayList<>();
         List<String> encY2List = new ArrayList<>();
 
@@ -125,27 +130,28 @@ public class LinearRegressionQuery extends QueryProcessor {
 
             Double xPlain = null;
             String xEnc = null;
-            if (xField != null)
+            if (xField != null) {
                 switch (xField.getFieldCase()) {
                     case PLAIN:
-                        xPlain = (double) xField.getPlain().getSeconds();
+                        xPlain = (double) xField.getPlain().getSeconds() / SCALE_FACTOR;
                         break;
                     case ENCRYPTED:
                         if (homomorphic)
                             xEnc = xField.getEncrypted();
                         else
-                            xPlain = (double) encryptionService.decryptLong(xField.getEncrypted(), version);
+                            xPlain = (double) encryptionService.decryptLong(
+                                    xField.getEncrypted(), version) / SCALE_FACTOR;
                         break;
                     default:
                         logger.fine("Skipping asset with no value for case " + xField.getFieldCase());
                         break;
                 }
-
+            }
             DeviceDataAsset.IntegerField yField = (DeviceDataAsset.IntegerField) asset.getDeviceData().getField(yDesc);
 
             Double yPlain = null;
             String yEnc = null;
-            if (yField != null)
+            if (yField != null) {
                 switch (yField.getFieldCase()) {
                     case PLAIN:
                         yPlain = (double) yField.getPlain();
@@ -160,11 +166,11 @@ public class LinearRegressionQuery extends QueryProcessor {
                         logger.fine("Skipping asset with no value for case " + yField.getFieldCase());
                         break;
                 }
-
+            }
             // something weird happened
-            if ((xPlain == null && xEnc == null) || (yPlain == null && yEnc == null))
+            if ((xPlain == null && xEnc == null) || (yPlain == null && yEnc == null)) {
                 continue;
-            count++;
+            }
 
             // both plaintext
             if (xPlain != null && yPlain != null) {
@@ -173,53 +179,63 @@ public class LinearRegressionQuery extends QueryProcessor {
                 sumXY += xPlain * yPlain;
                 sumX2 += xPlain * xPlain;
                 sumY2 += yPlain * yPlain;
+                count++;
             }
+
             // both encrypted
             else if (homomorphic && xEnc != null && yEnc != null) {
-                
+
                 if (canMultiply) {
                     encXList.add(xEnc);
                     encYList.add(yEnc);
-                    encXYList.add(encryptionService.homomorphicMultiply(xEnc, yEnc, version));
+                    encXYUnscaled.add(
+                            encryptionService.homomorphicMultiply(xEnc, yEnc, version));
                     encX2List.add(encryptionService.homomorphicMultiply(xEnc, xEnc, version));
                     encY2List.add(encryptionService.homomorphicMultiply(yEnc, yEnc, version));
                 } else {
-                    long x = encryptionService.decryptLong(xEnc, version);
-                    long y = encryptionService.decryptLong(yEnc, version);
+                    double x = (double) encryptionService.decryptLong(xEnc, version) / SCALE_FACTOR;
+                    double y = (double) encryptionService.decryptLong(yEnc, version);
                     sumX += x;
                     sumY += y;
-                    sumXY += (double) x * y;
-                    sumX2 += (double) x * x;
-                    sumY2 += (double) y * y;
+                    sumXY += x * y;
+                    sumX2 += x * x;
+                    sumY2 += y * y;
+
                 }
+                count++;
+
             }
-            // one of the pair is encrypted – decrypt it
+
+            // one encrypted, one plain
             else {
-                // we can do operation homomorphically
-                if(homomorphic && canMultiply) {
-                    // x enc, y plain
-                    if(xEnc != null) {
+                if (homomorphic && canMultiply) {
+                    // x enc, y plain (x raw seconds)
+                    if (xEnc != null) {
                         encXList.add(xEnc);
-                        encXYList.add(encryptionService.homomorphicMultiplyWithScalar(xEnc, Math.round(yPlain), version));
+                        encXYUnscaled.add(
+                                encryptionService.homomorphicMultiplyWithScalar(
+                                        xEnc, Math.round(yPlain), version));
                         encX2List.add(encryptionService.homomorphicMultiply(xEnc, xEnc, version));
 
                         sumY += yPlain;
                         sumY2 += yPlain * yPlain;
                     }
-                    // y enc, x plain
-                    if(yEnc != null) {
+                    // y enc, x plain (x already scaled)
+                    if (yEnc != null) {
                         encYList.add(yEnc);
-                        encXYList.add(encryptionService.homomorphicMultiplyWithScalar(yEnc, Math.round(xPlain), version));
+                        encXYScaled.add(
+                                encryptionService.homomorphicMultiplyWithScalar(
+                                        yEnc, Math.round(xPlain), version)); // x plain is scaled down
                         encY2List.add(encryptionService.homomorphicMultiply(yEnc, yEnc, version));
 
                         sumX += xPlain;
                         sumX2 += xPlain * xPlain;
                     }
-                }
-                // we can't do operation homomorphically
-                else{
-                    if(xPlain == null) xPlain = (double) encryptionService.decryptLong(xEnc, version);
-                    if(yPlain == null) yPlain = (double) encryptionService.decryptLong(yEnc, version);
+                } else {
+                    if (xPlain == null)
+                        xPlain = (double) encryptionService.decryptLong(xEnc, version) / SCALE_FACTOR;
+                    if (yPlain == null)
+                        yPlain = (double) encryptionService.decryptLong(yEnc, version);
 
                     sumX += xPlain;
                     sumY += yPlain;
@@ -227,44 +243,53 @@ public class LinearRegressionQuery extends QueryProcessor {
                     sumX2 += xPlain * xPlain;
                     sumY2 += yPlain * yPlain;
                 }
-            }
-        } // end of the for loop processing assets, now we do maths
+                count++;
 
-        // homomorphic reduction of accumulated ciphertexts
+            }
+        } // end for-each asset
+
         if (homomorphic) {
-            //  X values
+            // X values
             if (!encXList.isEmpty()) {
-                String sumEncX = encXList.size() == 1 ? encXList.get(0)
+                String s = encXList.size() == 1 ? encXList.get(0)
                         : encryptionService.homomorphicAdd(encXList, version);
-                sumX += encryptionService.decryptLong(sumEncX, version);
+                sumX += (double) encryptionService.decryptLong(s, version) / SCALE_FACTOR;
             }
 
-            // Y values
+            // Y values, never scaled
             if (!encYList.isEmpty()) {
-                String sumEncY = encYList.size() == 1 ? encYList.get(0)
+                String s = encYList.size() == 1 ? encYList.get(0)
                         : encryptionService.homomorphicAdd(encYList, version);
-                sumY += encryptionService.decryptLong(sumEncY, version);
+                sumY += (double) encryptionService.decryptLong(s, version);
             }
 
-            // x*y values
-            if (!encXYList.isEmpty()) {
-                String sumEncXY = encXYList.size() == 1 ? encXYList.get(0)
-                        : encryptionService.homomorphicAdd(encXYList, version);
-                sumXY += encryptionService.decryptLong(sumEncXY, version);
+            // x * y already scaled (yEnc ⋅ xPlain)
+            if (!encXYScaled.isEmpty()) {
+                String s = encXYScaled.size() == 1 ? encXYScaled.get(0)
+                        : encryptionService.homomorphicAdd(encXYScaled, version);
+                sumXY += (double) encryptionService.decryptLong(s, version);
             }
 
-            // x*x values
+            // x * y un-scaled (xEnc ⋅ yEnc OR xEnc ⋅ yPlain)
+            if (!encXYUnscaled.isEmpty()) {
+                String s = encXYUnscaled.size() == 1 ? encXYUnscaled.get(0)
+                        : encryptionService.homomorphicAdd(encXYUnscaled, version);
+                sumXY += (double) encryptionService.decryptLong(s, version) / SCALE_FACTOR;
+            }
+
+            // x2 values (raw seconds2)
             if (!encX2List.isEmpty()) {
-                String sumEncX2 = encX2List.size() == 1 ? encX2List.get(0)
+                String s = encX2List.size() == 1 ? encX2List.get(0)
                         : encryptionService.homomorphicAdd(encX2List, version);
-                sumX2 += encryptionService.decryptLong(sumEncX2, version);
+                sumX2 += (double) encryptionService.decryptLong(s, version)
+                        / (SCALE_FACTOR * SCALE_FACTOR);
             }
 
-            // y*y values
+            // y2 values (never scaled)
             if (!encY2List.isEmpty()) {
-                String sumEncY2 = encY2List.size() == 1 ? encY2List.get(0)
+                String s = encY2List.size() == 1 ? encY2List.get(0)
                         : encryptionService.homomorphicAdd(encY2List, version);
-                sumY2 += encryptionService.decryptLong(sumEncY2, version);
+                sumY2 += (double) encryptionService.decryptLong(s, version);
             }
         }
 
@@ -280,15 +305,10 @@ public class LinearRegressionQuery extends QueryProcessor {
         int count = 0;
 
         public AccumulatedValues() {
-            this.sumX = 0;
-            this.sumY = 0;
-            this.sumXY = 0;
-            this.sumX2 = 0;
-            this.sumY2 = 0;
-            this.count = 0;
         }
 
-        public AccumulatedValues(double sumX, double sumY, double sumXY, double sumX2, double sumY2, int count) {  
+        public AccumulatedValues(double sumX, double sumY, double sumXY,
+                double sumX2, double sumY2, int count) {
             this.sumX = sumX;
             this.sumY = sumY;
             this.sumXY = sumXY;
@@ -297,7 +317,8 @@ public class LinearRegressionQuery extends QueryProcessor {
             this.count = count;
         }
 
-        public void add(double sumX, double sumY, double sumXY, double sumX2, double sumY2, int count) {
+        public void add(double sumX, double sumY, double sumXY,
+                double sumX2, double sumY2, int count) {
             this.sumX += sumX;
             this.sumY += sumY;
             this.sumXY += sumXY;
@@ -307,7 +328,8 @@ public class LinearRegressionQuery extends QueryProcessor {
         }
 
         public void add(AccumulatedValues other) {
-            add(other.sumX, other.sumY, other.sumXY, other.sumX2, other.sumY2, other.count);
+            add(other.sumX, other.sumY, other.sumXY,
+                    other.sumX2, other.sumY2, other.count);
         }
     }
 
@@ -317,7 +339,8 @@ public class LinearRegressionQuery extends QueryProcessor {
         private final double rmse;
         private final int count;
 
-        public RegressionResult(double slope, double intercept, double rmse, int count) {
+        public RegressionResult(double slope, double intercept,
+                double rmse, int count) {
             this.slope = slope;
             this.intercept = intercept;
             this.rmse = rmse;
