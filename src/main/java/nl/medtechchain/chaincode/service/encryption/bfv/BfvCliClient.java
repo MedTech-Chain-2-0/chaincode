@@ -46,4 +46,15 @@ public class BfvCliClient {
         args.add(Long.toString(scalar));
         return SubprocessCall.executeBfv(binaryPath, args.toArray(String[]::new)).trim();
     }    
+
+    public String multiplyScalar(String ciphertext, long scalar) throws IOException {
+        if (ciphertext == null) {
+            throw new IllegalArgumentException("Ciphertext cannot be null");
+        }   
+        List<String> args = new ArrayList<>(3);
+        args.add("mulScalar");
+        args.add(ciphertext);
+        args.add(Long.toString(scalar));
+        return SubprocessCall.executeBfv(binaryPath, args.toArray(String[]::new)).trim();
+    }
 } 

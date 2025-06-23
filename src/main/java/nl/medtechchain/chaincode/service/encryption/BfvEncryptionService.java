@@ -137,4 +137,16 @@ public class BfvEncryptionService implements EncryptionService {
         }
     }
 
+    @Override
+    public String homomorphicMultiplyWithScalar(String ciphertext, long scalar, String version) {
+        if (ciphertext == null)
+            throw new IllegalArgumentException("Ciphertext cannot be null");
+        try {
+            return cli.multiplyScalar(ciphertext, scalar);
+        } catch (Exception e) {
+            logger.severe("BFV homomorphic multiplication with scalar failed: " + e.getMessage());
+            throw new RuntimeException("BFV homomorphic multiplication with scalar failed", e);
+        }
+    }
+
 }

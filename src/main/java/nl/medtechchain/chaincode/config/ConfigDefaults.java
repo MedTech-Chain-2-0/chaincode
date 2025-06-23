@@ -116,6 +116,8 @@ public class ConfigDefaults {
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_UNIQUE_COUNT_FIELDS, "hospital,manufacturer,model,firmware_version,device_type,category,speciality"));
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_HISTOGRAM_FIELDS, "usage_hours,battery_level, production_date, last_service_date,warranty_expiry_date"));
             list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_STD_FIELDS, "usage_hours, battery_level, sync_frequency_seconds,production_date, last_service_date, warranty_expiry_date, last_sync_time"));
+            list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS_X, "production_date, warranty_expiry_date, last_service_date"));
+            list.add(entry(CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS_Y, "usage_hours, battery_level, sync_frequency_seconds"));
 
             list.add(entry(CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY, "laplace"));
             list.add(entry(CONFIG_FEATURE_QUERY_DIFFERENTIAL_PRIVACY_LAPLACE_EPSILON, "1"));
@@ -135,7 +137,6 @@ public class ConfigDefaults {
             //    - Use for testing or when encryption is not needed
             
             // Uncomment to use BFV instead
-            // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_ACTIVE, "true"));
             // list.add(entry(CONFIG_FEATURE_QUERY_ENCRYPTION_SCHEME, "bfv"));
             
             // Uncomment to use Paillier instead

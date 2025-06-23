@@ -81,19 +81,36 @@ public class PaillierEncryptionService implements EncryptionService {
             BigInteger n = new BigInteger(publicKey);
             BigInteger nSquared = n.multiply(n);
             
+            logger.info("Starting homomorphic addition with " + ciphertexts.size() + " values");
+            
             // In Paillier, homomorphic addition is done via multiplication of ciphertexts
             BigInteger result = new BigInteger(ciphertexts.get(0));
             
             // Keep track of intermediate results to avoid overflow
             for (int i = 1; i < ciphertexts.size(); i++) {
-                // Multiply and take modulo after each step to keep numbers manageable
-                result = result.multiply(new BigInteger(ciphertexts.get(i))).mod(nSquared);
+                try {
+                    BigInteger nextValue = new BigInteger(ciphertexts.get(i));
+                    // Multiply and take modulo after each step to keep numbers manageable
+                    result = result.multiply(nextValue).mod(nSquared);
+                    logger.fine("Successfully added value " + i + " of " + ciphertexts.size());
+                } catch (NumberFormatException e) {
+                    logger.severe("Invalid ciphertext format at index " + i + ": " + ciphertexts.get(i));
+                    throw new IllegalArgumentException("Invalid ciphertext format: " + e.getMessage());
+                } catch (ArithmeticException e) {
+                    logger.severe("Arithmetic error during homomorphic addition: " + e.getMessage());
+                    throw new RuntimeException("Arithmetic error during homomorphic addition", e);
+                }
             }
             
+            logger.info("Homomorphic addition completed successfully");
             return result.toString();
         } catch (Exception e) {
             logger.severe("Failed to perform homomorphic addition: " + e.getMessage());
-            throw new RuntimeException("Failed to perform homomorphic addition", e);
+            logger.severe("Stack trace: " + e.toString());
+            for (StackTraceElement element : e.getStackTrace()) {
+                logger.severe("  at " + element.toString());
+            }
+            throw new RuntimeException("Failed to perform homomorphic addition: " + e.getMessage(), e);
         }
     }
     
@@ -102,6 +119,22 @@ public class PaillierEncryptionService implements EncryptionService {
         throw new UnsupportedOperationException(
             "Homomorphic multiplication is not supported by Paillier encryption. " +
             "Use BFV encryption for multiplication operations."
+        );
+    }
+
+    @Override
+    public String homomorphicMultiplyWithScalar(String ciphertext, long scalar, String version) {
+        throw new UnsupportedOperationException(
+            "Homomorphic multiplication with scalar is not implemented by Paillier encryption. " +
+            "Use BFV encryption for multiplication operations."
+        );
+    }
+
+    @Override
+    public String homomorphicSubWithScalar(String ciphertext, long scalar) {
+        throw new UnsupportedOperationException(
+            "Homomorphic subtraction with scalar is not implemented by Paillier encryption. " +
+            "Use BFV encryption for subtraction operations."
         );
     }
     

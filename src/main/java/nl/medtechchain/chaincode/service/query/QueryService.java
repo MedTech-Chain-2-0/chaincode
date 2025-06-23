@@ -4,9 +4,12 @@ import com.google.privacy.differentialprivacy.LaplaceNoise;
 import com.google.protobuf.Descriptors;
 import nl.medtechchain.chaincode.config.ConfigOps;
 import nl.medtechchain.chaincode.service.differentialprivacy.MechanismType;
+
 import nl.medtechchain.chaincode.service.query.average.AverageQuery;
+
 import nl.medtechchain.chaincode.service.query.count.CountQuery;
 import nl.medtechchain.chaincode.service.query.groupedcount.GroupedCountQuery;
+import nl.medtechchain.chaincode.service.query.linearregression.LinearRegressionQuery;
 import nl.medtechchain.chaincode.service.query.sum.SumQuery;
 import nl.medtechchain.chaincode.service.query.standarddeviation.STDQuery;
 import nl.medtechchain.chaincode.service.query.uniquecount.UniqueCountQuery;
@@ -78,6 +81,9 @@ public class QueryService {
                 break;
             case STD:
                 validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_STD_FIELDS).orElse("");
+                break;
+            case LINEAR_REGRESSION:
+                validFields = ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS_X).orElse("") + "," + ConfigOps.PlatformConfigOps.get(platformConfig, CONFIG_FEATURE_QUERY_INTERFACE_LINEAR_REGRESSION_FIELDS_Y).orElse("");
                 break;
         }
 
@@ -185,7 +191,7 @@ public class QueryService {
         
         return result;
     }
-    
+
     public QueryResult average(Query query, List<DeviceDataAsset> assets) {
         var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
 
@@ -206,6 +212,7 @@ public class QueryService {
 
         return result; 
     }
+
     
     public QueryResult uniqueCount(Query query, List<DeviceDataAsset> assets) {
         var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
@@ -265,7 +272,15 @@ public class QueryService {
     }
     
     public QueryResult linearRegression(Query query, List<DeviceDataAsset> assets) {
-        return null;
+
+        var fieldType = DeviceDataFieldTypeMapper.fromFieldName(query.getTargetField());
+
+        if (fieldType != DeviceDataFieldType.INTEGER && fieldType != DeviceDataFieldType.TIMESTAMP)
+            throw new IllegalStateException("cannot run LINEAR_REGRESSION over " + fieldType);
+
+        QueryResult result = new LinearRegressionQuery(platformConfig).process(query, assets);
+
+        return result;
     }
     
     // helpers

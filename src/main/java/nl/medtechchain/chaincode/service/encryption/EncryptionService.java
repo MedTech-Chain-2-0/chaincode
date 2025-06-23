@@ -33,4 +33,8 @@ public interface EncryptionService {
     
     // multiply two encrypted values (only works with some schemes)
     String homomorphicMultiply(String ciphertext1, String ciphertext2, String version);
+
+    String homomorphicSubWithScalar(String ciphertext, long scalar);
+
+    String homomorphicMultiplyWithScalar(String ciphertext, long scalar, String version);
 } 
