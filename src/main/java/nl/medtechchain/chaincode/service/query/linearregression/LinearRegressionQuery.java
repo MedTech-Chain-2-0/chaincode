@@ -12,7 +12,7 @@ import java.util.logging.Logger;
 public class LinearRegressionQuery extends QueryProcessor {
     private static final Logger logger = Logger.getLogger(LinearRegressionQuery.class.getName());
     private static final double SECONDS_PER_DAY = 86400;
-    private static final double SCALE_FACTOR = 100000;
+    private static final double SCALE_FACTOR = 100000; //to scale big timestamp values with BFV 
 
     public LinearRegressionQuery(PlatformConfig platformConfig) {
         super(platformConfig);
