@@ -42,7 +42,7 @@ The deployment is performed by automation scripts from the `tools` repository.
    ```
    Copy the printed **CHAINCODE_ID**.
 
-3. **Paste that ID in `docker-compose.yaml`** (three places, env `CHAINCODE_ID`).
+3. **Paste that ID in `docker-compose.yaml`** (three places, env `CORE_CHAINCODE_ID_NAME`).
 
 4. **Build and start the service containers**
    ```bash
